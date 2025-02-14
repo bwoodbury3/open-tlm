@@ -1,0 +1,28 @@
+html, body {
+    height: 100%;
+}
+
+.bg-toolbar {
+    background-color: #1b1e24;
+}
+
+.clickable:hover {
+    cursor: pointer;
+    color: #bbb !important;
+}
+
+.floating-parent {
+    position: relative;
+}
+
+.floating-0 {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+}
+
+.floating-10 {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+}
