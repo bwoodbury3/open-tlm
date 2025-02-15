@@ -5,7 +5,7 @@ import pathlib
 from flask import Flask, render_template, request, send_from_directory
 
 from src.index import Index
-from src.model.data import Datapoint
+from src.model.data import Datapoint, TimeSeriesDataset
 
 
 DEFAULT_STORE = pathlib.Path(__file__).parent / "data"
@@ -52,11 +52,8 @@ def public(path):
 
 @app.route("/api/datasets")
 def get_datasets():
-    any_filter = request.args.get("text")
-    if any_filter is None:
-        return {"message": "Missing search term"}, 400
-    return {}  # TODO
-    # return data.get_datasets(args.manifest, any_filter)
+    query = request.args.get("text", "")
+    return _index.datasets(query)
 
 
 @app.route("/api/data/<dataset_id>", methods=["GET"])
@@ -65,12 +62,11 @@ def get_data(dataset_id: str):
         start_dt = datetime.fromisoformat(request.args.get("start"))
         end_dt = datetime.fromisoformat(request.args.get("end"))
     except:
-        return {"message": "Invalid or msising start/end times"}, 400
+        return {"message": "Invalid or missing start/end times"}, 400
 
-    return {
-        "dataset_id": dataset_id,
-        "data": _index.get(dataset_id, start_dt, end_dt),
-    }
+    datapoints = _index.get(dataset_id, start_dt, end_dt)
+    data = TimeSeriesDataset(dataset_id, datapoints)
+    return {"data": data}
 
 
 @app.route("/api/data", methods=["POST"])
@@ -94,7 +90,10 @@ def post_data():
     for dataset in data:
         dataset_id = str(dataset["dataset_id"])
         points = [Datapoint(**point) for point in dataset["points"]]
-        _index.put(dataset_id, points)
+        try:
+            _index.put(dataset_id, points)
+        except Exception as e:
+            return {"message": str(e)}, 400
         count += len(points)
 
     return {"message": f"{count} datapoints were posted"}, 200

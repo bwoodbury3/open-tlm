@@ -6,29 +6,54 @@ from dataclasses import dataclass
 from datetime import datetime
 import itertools
 import pathlib
+from typing import Generator
 
 from src.model.data import AggregatedDatapoint, Datapoint
 from src.model.fidelity import Fidelity
 
-# Constants determining data fidelity on query. We approximate a resolution which
-# will serve 100-5000 datapoints, which is twice the max number of horizontal pixels
-# on a window, beyond which more data does not meaningfully improve the resolution.
+# The index looks like this:
 #
-# Likewise, the backend targets one file per 2000 datapoints
-MAX_QUERY_DATAPOINTS = 5000
+# Each aggregation level aggregates all datapoints for a time period (i.e. 10s) and
+# stores that record as a line in a file. We adjust the constants to target 5000
+# lines in each file. Using the 10s aggregation level as an example, we'd expect to
+# have a single file with 5000 10s aggregation records covering a ~14 hour timespan.
+#
+# The directory hierarchy at the top level looks something like this:
+#    data/<fidelity>/<dataset_id>/<#>/<#>/<#>/<timestamp>
+#       - fidelity is the fidelity of the data (i.e., "10", or "full")
+#       - dataset_id is the datapoint name
+#       - <#> is a number derived from the timestamp. Directories are organized such
+#           that there are 20 and 200 files at each level.
+#       - The name of the actual file with the data is the timestamp divided by the
+#           window of time that file covers.
+#
+# When new data is inserted, it is automatically indexed at all fidelity levels. In
+# theory, each level of fidelity divides the number of datapoints by 10 so each layer
+# is progressively faster to store.
+#
+# TODO / current limitations:
+#       - Sparse Data: This system doesn't scale super well if you have a million
+#           records all spaced apart by 15 minutes. That will create a million files
+#           at the 1s interval. This is solveable with some tradeoffs.
+#       - Duplicate Data: It's pretty easy to detect this but not a super common
+#           problem in practice.
+#       - Aggregation Timestamp: The aggregation timestamp (in the data) doesn't match
+#           any particular point. This is actually by design but could be misleading or
+#           confusing. WONTFIX :-)
+
+# The maximum number of datapoints present in a single file.
+DATAPOINT_GROUP_SIZE = 5000
 
 # The constants below describe the duration for which the respective fidelity will
-# yield MAX_QUERY_DATAPOINTS. Full duration is tuned for 10Hz. Faster or slower
+# yield DATAPOINT_GROUP_SIZE. Full duration is tuned for 10Hz. Faster or slower
 # telemetry rates may not perform as well.
-MAX_DURATION_FULL = MAX_QUERY_DATAPOINTS / 10
-MAX_DURATION_1 = MAX_QUERY_DATAPOINTS
+MAX_DURATION_FULL = DATAPOINT_GROUP_SIZE / 10
+MAX_DURATION_1 = DATAPOINT_GROUP_SIZE
 MAX_DURATION_10 = MAX_DURATION_1 * 10
 MAX_DURATION_100 = MAX_DURATION_1 * 100
 MAX_DURATION_1000 = MAX_DURATION_1 * 1000
 MAX_DURATION_10000 = MAX_DURATION_1 * 10000
 MAX_DURATION_100000 = MAX_DURATION_1 * 100000
-
-# Internal data storage API
 
 
 @dataclass
@@ -39,10 +64,11 @@ class _Datapoint:
 
 @dataclass
 class _AggregatedDatapoint:
-    timestamp: float
+    timestamp: int
     min_value: float
-    mean_value: float
     max_value: float
+    sum_values: float
+    count: int
 
 
 @dataclass
@@ -75,8 +101,8 @@ class Index:
             dataset_id: The ID of the dataset.
             points: The points to insert.
         """
-        if "/" in dataset_id or "." in dataset_id:
-            raise ValueError("Dataset ID must not contain slashes")
+        if "/" in dataset_id or dataset_id == "..":
+            raise ValueError("Illegal dataset ID")
 
         # Sort all of the datapoints by UTC timestamp. This makes aggregation/binning cheap.
         _points = [
@@ -156,6 +182,8 @@ class Index:
             start_dt: The start of the query window.
             end_dt: The end of the query window.
             fidelity: The fidelity of the data to return.
+
+        Returns: A list of datapoints covering this window, possible aggregated.
         """
         if fidelity is None:
             fidelity = self._recommended_fidelity(start_dt, end_dt)
@@ -175,6 +203,28 @@ class Index:
                 self._read_agg_datapoints(path) for path in paths
             )
         )
+
+    def datasets(self, query: str, max_count: int = 300) -> list[str]:
+        """
+        Get a list of all datasets this index currently knows about that match the
+        provided query.
+
+        Args:
+            query: A query string.
+            max_count: The maximum number of results to return.
+
+        Returns:
+            A list of all dataset_ids represented by this index.
+        """
+        path = self.base / "full"
+        if not path.is_dir():
+            return []
+
+        return [
+            f.name
+            for f in itertools.islice(path.iterdir(), max_count)
+            if query in f.name
+        ]
 
     def _init_backing_store(self):
         """
@@ -218,8 +268,7 @@ class Index:
         duration: float,
     ) -> list[_AggregatedDatapoint]:
         """
-        From a series of points, group all within a specified duration into a single
-        AggregatedDatapoint.
+        Given a list of points, emit one aggregated point for each duration interval.
 
         Args:
             points: A list of datapoints.
@@ -227,36 +276,89 @@ class Index:
 
         Returns: The aggregated datapoints.
         """
+        if len(points) == 0:
+            return []
+
         aggregated = []
-        last_t = None
+        bin_id = None
         window = []
         for point in points:
             # Determine which bin the point falls into by truncating to the nearest duration.
-            cur_t = int(int(point.timestamp / duration) * duration)
-            if cur_t != last_t and last_t is not None:
+            cur_bin_id = int(int(point.timestamp / duration) * duration)
+            if cur_bin_id != bin_id and bin_id is not None:
                 # Bin the previous window.
                 agg = _AggregatedDatapoint(
-                    timestamp=last_t,
+                    timestamp=bin_id,
                     min_value=min(window),
-                    mean_value=sum(window) / len(window),
                     max_value=max(window),
+                    sum_values=sum(window),
+                    count=len(window),
                 )
                 aggregated.append(agg)
 
                 # Clear the window.
                 window = []
-            last_t = cur_t
+
+            bin_id = cur_bin_id
             window.append(point.value)
 
         # Bin the last datapoint.
-        if last_t is not None:
-            agg = _AggregatedDatapoint(
-                timestamp=last_t,
-                min_value=min(window),
-                mean_value=sum(window) / len(window),
-                max_value=max(window),
-            )
-            aggregated.append(agg)
+        agg = _AggregatedDatapoint(
+            timestamp=bin_id,
+            min_value=min(window),
+            max_value=max(window),
+            sum_values=sum(window),
+            count=len(window),
+        )
+        aggregated.append(agg)
+        return aggregated
+
+    @staticmethod
+    def _combine_aggregations(
+        points1: list[_AggregatedDatapoint],
+        points2: list[_AggregatedDatapoint],
+    ) -> list[_AggregatedDatapoint]:
+        """
+        Given two lists of aggregated datapoints, merge overlapping aggregations.
+
+        The algorithm assumes the two lists of points are sorted by timestamp.
+
+        Args:
+            points1: The first set of aggregated datapoints.
+            points2: The second set of aggregated datapoints.
+
+        Returns: The combined aggregated datapoints, in time order.
+        """
+        aggregated = []
+        i = 0
+        j = 0
+        while i < len(points1) and j < len(points2):
+            point1 = points1[i]
+            point2 = points2[j]
+            if point1.timestamp < point2.timestamp:
+                aggregated.append(point1)
+                i += 1
+            elif point1.timestamp > point2.timestamp:
+                aggregated.append(point2)
+                j += 1
+            else:
+                aggregated.append(
+                    _AggregatedDatapoint(
+                        timestamp=point1.timestamp,
+                        min_value=min(point1.min_value, point2.min_value),
+                        max_value=max(point1.max_value, point2.max_value),
+                        sum_values=point1.sum_values + point2.sum_values,
+                        count=point1.count + point2.count,
+                    )
+                )
+                i += 1
+                j += 1
+        while i < len(points1):
+            aggregated.append(points1[i])
+            i += 1
+        while j < len(points2):
+            aggregated.append(points2[j])
+            j += 1
         return aggregated
 
     @staticmethod
@@ -417,10 +519,22 @@ class Index:
             datapoints: The datapoints to dump.
         """
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a") as f:
-            for datapoint in datapoints:
+
+        # Get the list of points that have already been indexed at this path and
+        # combine them with the new points we're about to add.
+        existing_points = list(Index._raw_agg_datapoints(path))
+        combined_points = Index._combine_aggregations(existing_points, datapoints)
+
+        with open(path, "w") as f:
+            for datapoint in combined_points:
                 f.write(
-                    f"{datapoint.timestamp},{datapoint.min_value},{datapoint.mean_value},{datapoint.max_value}\n"
+                    "{},{},{},{},{}\n".format(
+                        datapoint.timestamp,
+                        datapoint.min_value,
+                        datapoint.max_value,
+                        datapoint.sum_values,
+                        datapoint.count,
+                    )
                 )
 
     @staticmethod
@@ -444,7 +558,7 @@ class Index:
         return datapoints
 
     @staticmethod
-    def _read_agg_datapoints(path: pathlib.Path) -> list[Datapoint]:
+    def _read_agg_datapoints(path: pathlib.Path) -> list[AggregatedDatapoint]:
         """
         Read all of the datapoints in a file. The returned datapoints are not guaranteed
         to be in order. If the path doesn't exist, an empty set of datapoints is returned.
@@ -453,19 +567,39 @@ class Index:
             path: The path to read from.
         """
         datapoints = []
+        for datapoint in Index._raw_agg_datapoints(path):
+            datestr = datetime.fromtimestamp(datapoint.timestamp).isoformat()
+            datapoints.append(
+                AggregatedDatapoint(
+                    datestr,
+                    datapoint.min_value,
+                    datapoint.sum_values / datapoint.count,
+                    datapoint.max_value,
+                )
+            )
+        return datapoints
+
+    @staticmethod
+    def _raw_agg_datapoints(
+        path: pathlib.Path,
+    ) -> Generator[_AggregatedDatapoint, None, None]:
+        """
+        Generator to get all of the datapoints in a file. Does not convert to the public
+        API.
+
+        Args:
+            path: The path to read from.
+        """
         if not path.is_file():
-            return datapoints
+            return
 
         with open(path, "r") as f:
             for line in f.readlines():
-                timestamp, min, mean, max = line.split(",")
-                datestr = datetime.fromtimestamp(float(timestamp)).isoformat()
-                datapoints.append(
-                    AggregatedDatapoint(
-                        datestr,
-                        float(min),
-                        float(mean),
-                        float(max),
-                    )
+                timestamp, min, max, sum, count = line.split(",")
+                yield _AggregatedDatapoint(
+                    timestamp=int(timestamp),
+                    min_value=float(min),
+                    max_value=float(max),
+                    sum_values=float(sum),
+                    count=int(count),
                 )
-        return datapoints

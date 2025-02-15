@@ -207,7 +207,7 @@ export class Graph {
         for (const dataset_id in this.datasets) {
             const dataset = this.datasets[dataset_id];
             for (const point of dataset.points) {
-                const value = point.value;
+                const value = this._get_value(point);
                 min_y = Math.min(min_y, value);
                 max_y = Math.max(max_y, value);
             }
@@ -256,7 +256,7 @@ export class Graph {
             for (const point of points) {
                 const d = new Date(point.date).getTime();
                 const x = x_scale * (d - this.start);
-                const y = y_scale * (max_y - point.value);
+                const y = y_scale * (max_y - this._get_value(point));
 
                 this.ctx.lineTo(x, y);
             }
@@ -379,6 +379,19 @@ export class Graph {
                 this.interact_ctx.fillRect(0, 0, width, min_y);
                 this.interact_ctx.fillRect(0, max_y, width, height - max_y);
             }
+        }
+    }
+
+    /**
+     * Extract the value from a point.
+     *
+     * @param {Object} point The Datapoint object.
+     */
+    _get_value(point) {
+        if (point.value !== undefined) {
+            return point.value;
+        } else {
+            return point.mean_value;
         }
     }
 

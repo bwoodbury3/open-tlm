@@ -54,7 +54,7 @@ export class SearchBar {
         this.results_container.innerHTML = "";
         for (const dataset of datasets) {
             this.results_container.innerHTML += `
-                <p id="dataset-${dataset.id}" class="clickable">${dataset.name}</p>
+                <p id="dataset-${dataset}" class="clickable">${dataset}</p>
             `;
         }
 
@@ -62,8 +62,8 @@ export class SearchBar {
          * Bind onclick handlers.
          */
         for (const dataset of datasets) {
-            const dataset_elem = document.getElementById(`dataset-${dataset.id}`);
-            dataset_elem.onclick = () => this.on_select(dataset.id);
+            const dataset_elem = document.getElementById(`dataset-${dataset}`);
+            dataset_elem.onclick = () => this.on_select(dataset);
         }
     }
 

@@ -15,7 +15,7 @@ window.addEventListener('load', function () {
     const legend = document.getElementById("legend");
     const date_start = new Date();
     const date_end = new Date();
-    date_start.setTime(date_start.getTime() - 365 * 10 * MS_PER_DAY);
+    date_start.setTime(date_start.getTime() - MS_PER_DAY); // Default to the last 24 hrs
     graph = new Graph(graph_layer, interact_layer, legend, date_start, date_end, []);
 
     /*

@@ -20,13 +20,6 @@ class AggregatedDatapoint:
 
 
 @dataclass
-class Dataset:
-    id: str
-    name: str
-    tags: list[str]
-
-
-@dataclass
 class TimeSeriesDataset:
-    dataset: Dataset
+    dataset: str
     points: list[Datapoint | AggregatedDatapoint]
