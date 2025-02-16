@@ -126,6 +126,14 @@ export class Graph {
         this.interact_layer.addEventListener("mousemove", event => this._zoom_move(event));
         this.interact_layer.addEventListener("wheel", event => this._zoom_mousewheel(event));
 
+        /*
+         * Initialize the toolbar.
+         */
+        this.toolbar_zoom_in = document.getElementById("graph-zoom-in");
+        this.toolbar_zoom_in.onclick = event => this._zoom_in_button(event);
+        this.toolbar_zoom_out = document.getElementById("graph-zoom-out");
+        this.toolbar_zoom_out.onclick = event => this._zoom_out_button(event);
+
         addEventListener("resize", event => this._on_resize());
 
         for (const dataset_id of dataset_ids) {
@@ -500,6 +508,42 @@ export class Graph {
         const zoom_factor = event.deltaY > 0 ? 0.2 : -0.2;
         const mouse_x = event.offsetX;
         this._zoom_once_x(zoom_factor, mouse_x);
+    }
+
+    /**
+     * Handle the zoom in button from the toolbar.
+     *
+     * @param {*} event
+     */
+    _zoom_in_button(event) {
+        if (this.zoomer.axis === "y") {
+            /*
+             * TODO y axis zoom.
+             */
+            return;
+        }
+
+        const zoom_factor = -0.5
+        const midpoint_x = this.graph_layer.width / 2;
+        this._zoom_once_x(zoom_factor, midpoint_x);
+    }
+
+    /**
+     * Handle the zoom in button from the toolbar.
+     *
+     * @param {*} event
+     */
+    _zoom_out_button(event) {
+        if (this.zoomer.axis === "y") {
+            /*
+             * TODO y axis zoom.
+             */
+            return;
+        }
+
+        const zoom_factor = 0.5
+        const midpoint_x = this.graph_layer.width / 2;
+        this._zoom_once_x(zoom_factor, midpoint_x);
     }
 
     /**
