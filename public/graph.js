@@ -7,70 +7,8 @@ const DATA_ENDPOINT = "/api/data/";
  *      - Multiple axes
  *      - Smarter axes labels (1, 2, 3, ... instead of 0.89, 1.95, 3.01, ...)
  *      - Show the value on hover
+ *      - Sharelinks?
  */
-
-/**
- * Class which tracks the state of a zoom.
- */
-class Zoomer {
-    /**
-     * Constructor.
-     */
-    constructor() {
-        this.zoom_threshold = 20;
-        this.zooming = false;
-        this.axis = "x";
-        this.x0 = -1;
-        this.y0 = -1;
-        this.x1 = -1;
-        this.y1 = -1;
-    }
-
-    mouse_down(x, y) {
-        this.zooming = true;
-        this.x0 = x;
-        this.y0 = y;
-    }
-
-    mouse_drag(x, y) {
-        this.x1 = x;
-        this.y1 = y;
-    }
-
-    mouse_up(x, y) {
-        this.zooming = false;
-
-        this.x1 = x;
-        this.y1 = y;
-
-        /*
-         * Ensure x0 & y0 is always smaller.
-         */
-        if (this.x1 < this.x0) {
-            const tmp = this.x0;
-            this.x0 = this.x1;
-            this.x1 = tmp;
-        }
-        if (this.y1 < this.y0) {
-            const tmp = this.y0;
-            this.y0 = this.y1;
-            this.y1 = tmp;
-        }
-    }
-
-    cancel() {
-        this.zooming = false;
-    }
-
-    should_zoom() {
-        if (this.axis == "x") {
-            return Math.abs(this.x1 - this.x0) > this.zoom_threshold;
-        }
-        if (this.axis == "y") {
-            return Math.abs(this.y1 - this.y0) > this.zoom_threshold;
-        }
-    }
-}
 
 /**
  * Graph module.
@@ -91,6 +29,9 @@ export class Graph {
         this.end = end.getTime();
         this.datasets = {};
         this.colors = {};
+        this.settings = {
+            show_points: true,
+        }
 
         this.color_picker = new ColorPicker();
 
@@ -133,6 +74,8 @@ export class Graph {
         this.toolbar_zoom_in.onclick = event => this._zoom_in_button(event);
         this.toolbar_zoom_out = document.getElementById("graph-zoom-out");
         this.toolbar_zoom_out.onclick = event => this._zoom_out_button(event);
+        this.toolbar_point_toggle = document.getElementById("graph-point-toggle");
+        this.toolbar_point_toggle.onclick = event => this._toggle_points(event);
 
         addEventListener("resize", event => this._on_resize());
 
@@ -265,6 +208,7 @@ export class Graph {
                 this.colors[dataset_id] = this.color_picker.next();
             }
             this.graph_ctx.strokeStyle = this.colors[dataset_id];
+            this.graph_ctx.fillStyle = this.colors[dataset_id];
 
             /*
              * Draw the initial point.
@@ -276,7 +220,7 @@ export class Graph {
             this.graph_ctx.moveTo(x0, y0);
 
             /*
-             * Draw the subsequent points.
+             * Draw a path through subsequent points.
              */
             for (const point of points) {
                 const d = new Date(point.date).getTime();
@@ -285,8 +229,22 @@ export class Graph {
 
                 this.graph_ctx.lineTo(x, y);
             }
-
             this.graph_ctx.stroke();
+
+            /*
+             * Draw all of the individual points.
+             */
+            if (this.settings.show_points) {
+                for (const point of points) {
+                    const d = new Date(point.date).getTime();
+                    const x = x_scale * (d - this.start);
+                    const y = y_scale * (max_y - this._get_value(point));
+
+                    this.graph_ctx.beginPath();
+                    this.graph_ctx.arc(x, y, 2, 0, 2 * Math.PI, false);
+                    this.graph_ctx.fill();
+                }
+            }
         }
 
         /*
@@ -573,5 +531,76 @@ export class Graph {
          */
         this._graph_layer();
         this._refresh();
+    }
+
+    /**
+     * Toggle the show_points config.
+     */
+    _toggle_points() {
+        this.settings.show_points = !this.settings.show_points;
+        this._graph_layer();
+    }
+}
+
+/**
+ * Class which tracks the state of a zoom.
+ */
+class Zoomer {
+    /**
+     * Constructor.
+     */
+    constructor() {
+        this.zoom_threshold = 20;
+        this.zooming = false;
+        this.axis = "x";
+        this.x0 = -1;
+        this.y0 = -1;
+        this.x1 = -1;
+        this.y1 = -1;
+    }
+
+    mouse_down(x, y) {
+        this.zooming = true;
+        this.x0 = x;
+        this.y0 = y;
+    }
+
+    mouse_drag(x, y) {
+        this.x1 = x;
+        this.y1 = y;
+    }
+
+    mouse_up(x, y) {
+        this.zooming = false;
+
+        this.x1 = x;
+        this.y1 = y;
+
+        /*
+         * Ensure x0 & y0 is always smaller.
+         */
+        if (this.x1 < this.x0) {
+            const tmp = this.x0;
+            this.x0 = this.x1;
+            this.x1 = tmp;
+        }
+        if (this.y1 < this.y0) {
+            const tmp = this.y0;
+            this.y0 = this.y1;
+            this.y1 = tmp;
+        }
+    }
+
+    cancel() {
+        this.zooming = false;
+    }
+
+    should_zoom() {
+        if (this.axis == "x") {
+            return Math.abs(this.x1 - this.x0) > this.zoom_threshold;
+        }
+        if (this.axis == "y") {
+            return Math.abs(this.y1 - this.y0) > this.zoom_threshold;
+        }
     }
 }
