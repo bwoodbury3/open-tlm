@@ -1,3 +1,4 @@
+import { ylabels } from "/public/axes.js";
 import { ColorPicker } from "/public/color.js";
 
 const DATA_ENDPOINT = "/api/data/";
@@ -6,8 +7,8 @@ const DATA_ENDPOINT = "/api/data/";
  * TODO:
  *      - Multiple axes
  *      - Smarter axes labels (1, 2, 3, ... instead of 0.89, 1.95, 3.01, ...)
- *      - Show the value on hover
  *      - Sharelinks?
+ *      - Throttle full refresh requests
  */
 
 /**
@@ -248,14 +249,13 @@ export class Graph {
         /*
          * Y axis.
          */
-        const y_points = 10;
-        const y_dist_px = this.graph_layer.height - 2 * margin_px;
-        const y_step_px = y_dist_px / (y_points - 1);
-        for (let i = 1; i < y_points - 1; ++i) {
-            const y_px = margin_px + i * y_step_px;
-            const y_val = this.max_y - y_px / this.y_scale;
-            const valstr = y_val.toFixed(2);
-            this.graph_ctx.fillText(`${valstr}`, margin_px, y_px);
+        const y_points = 15;
+        const y_labels = ylabels(this.min_y, this.max_y, y_points);
+        for (const y_label of y_labels) {
+            const y_px = this.y_scale * (this.max_y - y_label);
+            if (this.graph_layer.height - y_px > 2 * margin_px) {
+                this.graph_ctx.fillText(`${y_label}`, margin_px, y_px);
+            }
         }
     }
 
