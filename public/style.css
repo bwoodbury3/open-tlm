@@ -2,7 +2,7 @@ html, body {
     height: 100%;
 }
 
-.bg-toolbar {
+.bg-color-primary {
     background-color: #1b1e24;
 }
 
@@ -25,4 +25,8 @@ html, body {
     position: absolute;
     left: 10px;
     top: 10px;
+}
+
+.floating-undefined {
+    position: absolute;
 }

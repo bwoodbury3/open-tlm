@@ -17,20 +17,18 @@ export class Graph {
     /**
      * Constructor.
      *
-     * @param {Element} graph_canvas The graph canvas layer.
-     * @param {Element} interact_canvas The interactive canvas layer.
-     * @param {Element} legend The legend element.
      * @param {Date} start The initial start time range.
      * @param {Date} end The initial end time range.
      * @param {Array<String>} dataset_ids The dataset IDs.
      */
-    constructor(graph_canvas, interact_canvas, legend, start, end, dataset_ids) {
+    constructor(start, end, dataset_ids) {
         this.start = start.getTime();
         this.end = end.getTime();
         this.datasets = {};
         this.colors = {};
         this.settings = {
             show_points: true,
+            point_width: 4,
         }
 
         this.color_picker = new ColorPicker();
@@ -38,7 +36,7 @@ export class Graph {
         /*
          * Initialize the canvas.
          */
-        this.graph_layer = graph_canvas;
+        this.graph_layer = document.getElementById("layer-graph");
         this.graph_layer.width = this.graph_layer.offsetWidth;
         this.graph_layer.height = this.graph_layer.offsetHeight;
         this.graph_ctx = this.graph_layer.getContext("2d");
@@ -46,7 +44,7 @@ export class Graph {
         /*
          * Initialize the interactive layer.
          */
-        this.interact_layer = interact_canvas;
+        this.interact_layer = document.getElementById("layer-interact");
         this.interact_layer.width = this.interact_layer.offsetWidth;
         this.interact_layer.height = this.interact_layer.offsetHeight;
         this.interact_ctx = this.interact_layer.getContext("2d");
@@ -54,7 +52,7 @@ export class Graph {
         /*
          * Initialize the legend.
          */
-        this.legend = legend;
+        this.legend = document.getElementById("legend");
         this.legend.style.visibility = "hidden";
 
         /*
@@ -76,6 +74,15 @@ export class Graph {
         this.toolbar_zoom_out.onclick = event => this._zoom_out_button(event);
         this.toolbar_point_toggle = document.getElementById("graph-point-toggle");
         this.toolbar_point_toggle.onclick = event => this._toggle_points(event);
+
+        /*
+         * Initialize the tooltip.
+         */
+        this.interact_layer.addEventListener("mousemove", event => this._maybe_tooltip(event));
+        this.tooltip_div = document.getElementById("tooltip");
+        this.tooltip_div.style.visibility = "hidden";
+        this.tooltip_value = document.getElementById("tooltip-value");
+        this.tooltip_timestamp = document.getElementById("tooltip-timestamp");
 
         addEventListener("resize", event => this._on_resize());
 
@@ -160,88 +167,47 @@ export class Graph {
         this.graph_ctx.clearRect(0, 0, this.graph_layer.width, this.graph_layer.height);
 
         /*
-         * Calculate the y axis range.
+         * Everytime the graph is redrawn, we recalculate the datasets in the pixel
+         * coordinate frame.
          */
-        var min_y = Number.MAX_VALUE;
-        var max_y = Number.MIN_VALUE;
-        for (const dataset_id in this.datasets) {
-            const dataset = this.datasets[dataset_id];
-            for (const point of dataset.points) {
-                const value = this._get_value(point);
-                min_y = Math.min(min_y, value);
-                max_y = Math.max(max_y, value);
-            }
-        }
+        this._calculate_pixel_coordinate_frame();
 
         /*
-         * Give a sane default if there is no data.
-         */
-        if (Object.keys(this.datasets).length === 0) {
-            min_y = 0;
-            max_y = 1;
-        }
-
-        const x_range = this.end - this.start;
-        var y_range = max_y - min_y;
-
-        /*
-         * Grow the y_range by 10%.
-         */
-        max_y += y_range * .05;
-        min_y -= y_range * .05;
-        y_range = max_y - min_y;
-
-        const x_scale = this.graph_layer.width / x_range;
-        const y_scale = this.graph_layer.height / y_range;
-
-        /*
-         * Draw all of the paths.
+         * Pick all of the colors.
          */
         for (const dataset_id in this.datasets) {
-            const dataset = this.datasets[dataset_id];
-            const points = dataset.points;
-
-            /*
-             * Get a color for this dataset.
-             */
             if (!(dataset_id in this.colors)) {
                 this.colors[dataset_id] = this.color_picker.next();
             }
+        }
+
+        /*
+         * Render the graph!
+         */
+        for (const dataset_id in this.pixelpoints) {
+            const points = this.pixelpoints[dataset_id];
+
             this.graph_ctx.strokeStyle = this.colors[dataset_id];
             this.graph_ctx.fillStyle = this.colors[dataset_id];
 
             /*
-             * Draw the initial point.
+             * Draw the path.
              */
-            const d0 = new Date(points[0].date).getTime();
-            const x0 = x_scale * (d0 - this.start);
-            const y0 = y_scale * (max_y - points[0].value);
             this.graph_ctx.beginPath();
-            this.graph_ctx.moveTo(x0, y0);
-
-            /*
-             * Draw a path through subsequent points.
-             */
+            this.graph_ctx.moveTo(points[0][0], points[0][1]);
             for (const point of points) {
-                const d = new Date(point.date).getTime();
-                const x = x_scale * (d - this.start);
-                const y = y_scale * (max_y - this._get_value(point));
-
-                this.graph_ctx.lineTo(x, y);
+                this.graph_ctx.lineTo(point[0], point[1]);
             }
             this.graph_ctx.stroke();
 
             /*
-             * Draw all of the individual points.
+             * Draw all of the little point circles if asked.
              */
+            const point_width = this.settings.point_width;
             if (this.settings.show_points) {
                 for (const point of points) {
-                    const d = new Date(point.date).getTime();
-                    const x = x_scale * (d - this.start);
-                    const y = y_scale * (max_y - this._get_value(point));
-
                     this.graph_ctx.beginPath();
-                    this.graph_ctx.arc(x, y, 2, 0, 2 * Math.PI, false);
+                    this.graph_ctx.arc(point[0], point[1], point_width, 0, 2 * Math.PI, false);
                     this.graph_ctx.fill();
                 }
             }
@@ -250,7 +216,7 @@ export class Graph {
         /*
          * Redraw the axes.
          */
-        this._axes(min_y, max_y);
+        this._axes();
 
         /*
          * Redraw the legend.
@@ -260,11 +226,8 @@ export class Graph {
 
     /**
      * Draw the axes.
-     *
-     * @param {Number} min_y The min y value.
-     * @param {Number} max_y The max y value.
      */
-    _axes(min_y, max_y) {
+    _axes() {
         const margin_px = 10;
         this.graph_ctx.fillStyle = "white";
         this.graph_ctx.font = "15px Arial";
@@ -273,13 +236,11 @@ export class Graph {
          * X axis (date).
          */
         const x_points = 7;
-        const x_range = this.end - this.start;
-        const x_scale = this.graph_layer.width / x_range;
         const x_dist_px = this.graph_layer.width - 2 * margin_px;
         const x_step_px = x_dist_px / (x_points - 1);
         for (let i = 0; i < x_points - 1; ++i) {
             const x_px = margin_px + i * x_step_px;
-            const x_val = this.start + x_px / x_scale;
+            const x_val = this.start + x_px / this.x_scale;
             const datestr = new Date(x_val).toISOString();
             this.graph_ctx.fillText(`${datestr}`, x_px, this.graph_layer.height - margin_px);
         }
@@ -288,13 +249,11 @@ export class Graph {
          * Y axis.
          */
         const y_points = 10;
-        const y_range = max_y - min_y;
-        const y_scale = this.graph_layer.height / y_range;
         const y_dist_px = this.graph_layer.height - 2 * margin_px;
         const y_step_px = y_dist_px / (y_points - 1);
         for (let i = 1; i < y_points - 1; ++i) {
             const y_px = margin_px + i * y_step_px;
-            const y_val = max_y - y_px / y_scale;
+            const y_val = this.max_y - y_px / this.y_scale;
             const valstr = y_val.toFixed(2);
             this.graph_ctx.fillText(`${valstr}`, margin_px, y_px);
         }
@@ -365,6 +324,68 @@ export class Graph {
     }
 
     /**
+     * Scale all of the `datapoints` into the graph coordinate frame. Sets:
+     *      - this.pixelpoints: All of the datapoints in the pixel coordinate frame.
+     *          This is a mapping of dataset_id -> list[x,y] coordinates.
+     *      - thix.min_y: The minimum y point.
+     *      - thix.max_y: The maximum y point.
+     *      - this.x_scale: The x axis scale in pixels per millisecond.
+     *      - this.y_scale: The y axis scale in pixels per unit.
+     *
+     * This should be called before re-rendering the graph.
+     */
+    _calculate_pixel_coordinate_frame() {
+        /*
+         * Calculate the y axis bounds.
+         */
+        if (Object.keys(this.datasets).length > 0) {
+            this.min_y = Number.MAX_VALUE;
+            this.max_y = Number.MIN_VALUE;
+            for (const dataset_id in this.datasets) {
+                const dataset = this.datasets[dataset_id];
+                for (const point of dataset.points) {
+                    const value = this._get_value(point);
+                    this.min_y = Math.min(this.min_y, value);
+                    this.max_y = Math.max(this.max_y, value);
+                }
+            }
+        } else {
+            this.max_y = 1;
+            this.min_y = 0;
+        }
+
+        /*
+         * Grow the bounds by 10% so that points aren't right on the ceiling.
+         */
+        const y_range_before = this.max_y - this.min_y;
+        this.max_y += y_range_before * .05;
+        this.min_y -= y_range_before * .05;
+
+        const x_range = this.end - this.start;
+        const y_range = this.max_y - this.min_y;
+        this.x_scale = this.graph_layer.width / x_range;
+        this.y_scale = this.graph_layer.height / y_range;
+
+        /*
+         * Calculate all of the pixelpoints.
+         */
+        this.pixelpoints = {};
+        for (const dataset_id in this.datasets) {
+            const dataset = this.datasets[dataset_id];
+            const points = dataset.points;
+
+            var pixels = [];
+            for (const point of points) {
+                const d = new Date(point.date).getTime();
+                const x = this.x_scale * (d - this.start);
+                const y = this.y_scale * (this.max_y - this._get_value(point));
+                pixels.push([x, y]);
+            }
+            this.pixelpoints[dataset_id] = pixels;
+        }
+    }
+
+    /**
      * Extract the value from a point.
      *
      * @param {Object} point The Datapoint object.
@@ -374,6 +395,73 @@ export class Graph {
             return point.value;
         } else {
             return point.mean_value;
+        }
+    }
+
+    /**
+     * Render a tooltip if the mouse is hovering above a point.
+     *
+     * @param {*} event
+     */
+    _maybe_tooltip(event) {
+        const point_width = this.settings.point_width;
+        const mouse_x = event.offsetX;
+        const mouse_y = event.offsetY;
+
+        let active = false;
+        let pixelpoint = undefined;
+        let datapoint = undefined;
+        let dataset = undefined;
+
+        /*
+         * Detect mouse collision with any datapoints.
+         */
+        for (const dataset_id of Object.keys(this.pixelpoints).reverse()) {
+            const points = this.pixelpoints[dataset_id];
+            for (const i in points) {
+                const point = points[i];
+                if (Math.abs(mouse_x - point[0]) <= point_width &&
+                        Math.abs(mouse_y - point[1]) <= point_width) {
+                    active = true;
+                    pixelpoint = point;
+                    datapoint = this.datasets[dataset_id].points[i];
+                    dataset = dataset_id;
+                    break;
+                }
+            }
+
+            if (active) {
+                break;
+            }
+        }
+
+        /*
+         * Possibly render the tooltip.
+         */
+        if (active) {
+            this.tooltip_value.innerHTML =
+                `<code>${dataset}</code>: <code>${this._get_value(datapoint)}</code>`;
+            this.tooltip_timestamp.innerText = new Date(datapoint.date).toISOString();
+
+            /*
+             * Find an x,y for the tooltip that fully fits on the screen.
+             */
+            let x = pixelpoint[0] + 5;
+            let y = pixelpoint[1] - this.tooltip_div.offsetHeight / 2;
+            if (pixelpoint[0] + this.tooltip_div.offsetWidth > this.graph_layer.width) {
+                x = pixelpoint[0] - this.tooltip_div.offsetWidth - 5;
+            }
+            y = Math.max(0, Math.min(y, this.graph_layer.height - this.tooltip_div.offsetHeight));
+
+            this.tooltip_div.style.left = `${x}px`;
+            this.tooltip_div.style.top = `${y}px`;
+            this.tooltip_div.style.visibility = "visible";
+        } else {
+            this.tooltip_div.style.visibility = "hidden";
+            this.tooltip_div.style.left = "0px";
+            this.tooltip_div.style.top = "0px";
+            this.tooltip_value.innerText = "";
+            this.tooltip_timestamp.innerText = "";
         }
     }
 

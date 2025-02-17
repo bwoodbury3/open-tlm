@@ -10,13 +10,10 @@ window.addEventListener('load', function () {
     /*
      * Create the Graph controller
      */
-    const graph_layer = document.getElementById("layer-graph");
-    const interact_layer = document.getElementById("layer-interact");
-    const legend = document.getElementById("legend");
     const date_start = new Date();
     const date_end = new Date();
     date_start.setTime(date_start.getTime() - MS_PER_DAY); // Default to the last 24 hrs
-    graph = new Graph(graph_layer, interact_layer, legend, date_start, date_end, []);
+    graph = new Graph(date_start, date_end, []);
 
     /*
      * Create the SearchBar controller.

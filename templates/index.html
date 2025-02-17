@@ -21,7 +21,7 @@
         <div class="h-100">
             <div class="row h-100 w-100 m-0 overflow-hidden">
                 <!-- Search bar -->
-                <div class="col-md-3 p-2 h-100 bg-toolbar">
+                <div class="col-md-3 p-2 h-100 bg-color-primary">
                     <div class="form-group">
                         <input class="form-control" id="dataset-search-input" placeholder="telemetry name" type="text">
                     </div>
@@ -46,9 +46,15 @@
                         </div>
                     </div>
                     <div class="row flex-grow-1 floating-parent">
-                        <canvas id="layer-graph" class="w-100 h-100 floating-0 z-0"></canvas>
-                        <canvas id="layer-interact" class="w-100 h-100 floating-0 z-1"></canvas>
+                        <canvas id="layer-graph" class="w-100 h-100 p-0 floating-0 z-0"></canvas>
+                        <canvas id="layer-interact" class="w-100 h-100 p-0 floating-0 z-1"></canvas>
                         <div id="legend" class="w-auto mh-50 mw-25 p-3 border rounded floating-10 z-2"></div>
+
+                        <!-- The tooltip is positioned with javascript -->
+                        <div id="tooltip" class="w-auto h-auto p-2 border rounded floating-undefined bg-color-primary z-2">
+                            <p id="tooltip-value" class="p-0 m-0"></p>
+                            <p id="tooltip-timestamp" class="p-0 m-0"></p>
+                        </div>
                     </div>
                 </div>
             </div>
