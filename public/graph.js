@@ -1,4 +1,4 @@
-import { ylabels } from "/public/axes.js";
+import { base10_labels, time_labels } from "/public/axes.js";
 import { ColorPicker } from "/public/color.js";
 
 const DATA_ENDPOINT = "/api/data/";
@@ -6,7 +6,6 @@ const DATA_ENDPOINT = "/api/data/";
 /*
  * TODO:
  *      - Multiple axes
- *      - Smarter axes labels (1, 2, 3, ... instead of 0.89, 1.95, 3.01, ...)
  *      - Sharelinks?
  *      - Throttle full refresh requests
  */
@@ -236,21 +235,18 @@ export class Graph {
         /*
          * X axis (date).
          */
-        const x_points = 7;
-        const x_dist_px = this.graph_layer.width - 2 * margin_px;
-        const x_step_px = x_dist_px / (x_points - 1);
-        for (let i = 0; i < x_points - 1; ++i) {
-            const x_px = margin_px + i * x_step_px;
-            const x_val = this.start + x_px / this.x_scale;
-            const datestr = new Date(x_val).toISOString();
-            this.graph_ctx.fillText(`${datestr}`, x_px, this.graph_layer.height - margin_px);
+        const x_points = 6;
+        const x_labels = time_labels(this.start, this.end, x_points);
+        for (const x_label of x_labels) {
+            const x_px = this.x_scale * (x_label[0] - this.start);
+            this.graph_ctx.fillText(`${x_label[1]}`, x_px, this.graph_layer.height - margin_px);
         }
 
         /*
          * Y axis.
          */
-        const y_points = 15;
-        const y_labels = ylabels(this.min_y, this.max_y, y_points);
+        const y_points = 10;
+        const y_labels = base10_labels(this.min_y, this.max_y, y_points);
         for (const y_label of y_labels) {
             const y_px = this.y_scale * (this.max_y - y_label);
             if (this.graph_layer.height - y_px > 2 * margin_px) {
