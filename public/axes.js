@@ -10,6 +10,10 @@ const LOG_60 = Math.log(60);
  * @returns {Array<Number>} The axis labels.
  */
 export function base10_labels(min_y, max_y, max_labels) {
+    if (max_y - min_y === 0) {
+        return [];
+    }
+
     const spacing = base10_interval(min_y, max_y, max_labels);
 
     let labels = [];
@@ -48,7 +52,9 @@ export function time_labels(min_x, max_x, max_labels) {
      * want base 10 rules. Until the day range, we want base 60. Above the day range,
      * back to base 10.
      */
-    if (x_range_ms < 1000 * 2) {
+    if (x_range_ms === 0) {
+        return [];
+    } else if (x_range_ms < 1000 * 2) {
         /*
          * In the millisecond range, use base 10 milliseconds as the intervals and
          * time-only. as the label

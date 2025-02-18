@@ -186,6 +186,9 @@ export class Graph {
          */
         for (const dataset_id in this.pixelpoints) {
             const points = this.pixelpoints[dataset_id];
+            if (points.length === 0) {
+                continue;
+            }
 
             this.graph_ctx.strokeStyle = this.colors[dataset_id];
             this.graph_ctx.fillStyle = this.colors[dataset_id];
@@ -493,6 +496,10 @@ export class Graph {
          */
         if (this.zoomer.axis === "x") {
             const x_range = this.end - this.start;
+            if (x_range < 5) {
+                return;
+            }
+
             const x_scale = this.interact_layer.width / x_range;
             this.end = this.start + this.zoomer.x1 / x_scale;
             this.start = this.start + this.zoomer.x0 / x_scale;
@@ -595,6 +602,10 @@ export class Graph {
      * @param {Number} midpoint_x The centerpoint of the zoom in the canvas frame.
      */
     _zoom_once_x(zoom_factor, midpoint_x) {
+        if (this.end - this.start < 5 && zoom_factor < 0) {
+            return;
+        }
+
         /*
          * Calculate the old/new zoom ranges.
          */
