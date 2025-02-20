@@ -30,3 +30,7 @@ html, body {
 .floating-undefined {
     position: absolute;
 }
+
+.btn-enabled {
+    background-color: var(--bs-btn-active-bg);
+}

@@ -100,6 +100,7 @@ export class Graph {
 
         addEventListener("resize", event => this._on_resize());
 
+        this._toolbar();
         this._refresh();
         this._graph_layer();
     }
@@ -345,6 +346,23 @@ export class Graph {
                 this.interact_ctx.fillRect(0, 0, width, min_y);
                 this.interact_ctx.fillRect(0, max_y, width, height - max_y);
             }
+        }
+    }
+
+    /**
+     * Redraw the toolbar.
+     */
+    _toolbar() {
+        if (this.settings.show_points) {
+            this.toolbar_point_toggle.classList.add("btn-enabled");
+        } else {
+            this.toolbar_point_toggle.classList.remove("btn-enabled");
+        }
+
+        if (this.settings.show_grid) {
+            this.toolbar_grid_toggle.classList.add("btn-enabled");
+        } else {
+            this.toolbar_grid_toggle.classList.remove("btn-enabled");
         }
     }
 
@@ -658,6 +676,7 @@ export class Graph {
      */
     _toggle_points() {
         this.settings.show_points = !this.settings.show_points;
+        this._toolbar();
         this._graph_layer();
     }
 
@@ -666,6 +685,7 @@ export class Graph {
      */
     _toggle_grid() {
         this.settings.show_grid = !this.settings.show_grid;
+        this._toolbar();
         this._graph_layer();
     }
 }
