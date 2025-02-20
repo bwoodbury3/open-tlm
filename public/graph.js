@@ -1,13 +1,22 @@
 import { base10_labels, time_labels } from "/public/axes.js";
 import { ColorPicker } from "/public/color.js";
+import { TaskQueue } from "/public/tasks.js";
 
-const DATA_ENDPOINT = "/api/data/";
+const DATA_ENDPOINT = "/api/data";
 
 /*
  * TODO:
+ *
+ * UX improvements
  *      - Multiple axes
+ *      - Axes lines (toggleable)
+ *      - Collapse or resize the searchbar
+ *      - Remember settings in cookies
+ *
+ * System features
+ *      - X axis inline notes.
+ *          - Maybe adding a note on a telemetry point?
  *      - Sharelinks?
- *      - Throttle full refresh requests
  */
 
 /**
@@ -32,6 +41,7 @@ export class Graph {
         }
 
         this.color_picker = new ColorPicker();
+        this.refresh_task_queue = new TaskQueue(1, 1);
 
         /*
          * Initialize the canvas.
@@ -86,10 +96,7 @@ export class Graph {
 
         addEventListener("resize", event => this._on_resize());
 
-        for (const dataset_id of dataset_ids) {
-            this._fetch(dataset_id);
-        }
-
+        this._refresh();
         this._graph_layer();
     }
 
@@ -115,10 +122,12 @@ export class Graph {
     /**
      * Refresh the data for all datasets.
      */
-    _refresh() {
-        for (const dataset_id in this.datasets) {
-            this._fetch(dataset_id);
-        }
+    async _refresh() {
+        this.refresh_task_queue.enqueue(async () => {
+            for (const dataset_id in this.datasets) {
+                await this._fetch(dataset_id);
+            }
+        })
     }
 
     /**
@@ -126,24 +135,21 @@ export class Graph {
      *
      * @param {String} dataset_id The dataset to fetch.
      */
-    _fetch(dataset_id) {
+    async _fetch(dataset_id) {
         const params = new URLSearchParams({
             start: new Date(this.start).toISOString(),
             end: new Date(this.end).toISOString(),
         });
         const endpoint = `${DATA_ENDPOINT}/${dataset_id}?${params}`;
-
-        fetch(endpoint)
-            .then(response => response.json())
-            .then(response => {
-                const data = response.data;
-                if (data.dataset === undefined || data.points === undefined) {
-                    console.log("Invalid response!");
-                    return;
-                }
-                this.datasets[dataset_id] = data;
-                this._graph_layer();
-            });
+        const response = await fetch(endpoint);
+        const json = await response.json();
+        const data = json.data;
+        if (data.dataset === undefined || data.points === undefined) {
+            console.log("Invalid response!");
+            return;
+        }
+        this.datasets[dataset_id] = data;
+        this._graph_layer();
     }
 
     /*
@@ -489,7 +495,6 @@ export class Graph {
         if (!this.zoomer.should_zoom()) {
             return;
         }
-
 
         /*
          * Set the new x axis bounds.
