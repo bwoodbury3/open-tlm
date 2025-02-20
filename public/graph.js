@@ -9,7 +9,7 @@ const DATA_ENDPOINT = "/api/data";
  *
  * UX improvements
  *      - Multiple axes
- *      - Axes lines (toggleable)
+ *      - Pan
  *      - Collapse or resize the searchbar
  *      - Remember settings in cookies
  *
@@ -38,6 +38,8 @@ export class Graph {
         this.settings = {
             show_points: true,
             point_width: 4,
+
+            show_grid: true,
         }
 
         this.color_picker = new ColorPicker();
@@ -84,6 +86,8 @@ export class Graph {
         this.toolbar_zoom_out.onclick = event => this._zoom_out_button(event);
         this.toolbar_point_toggle = document.getElementById("graph-point-toggle");
         this.toolbar_point_toggle.onclick = event => this._toggle_points(event);
+        this.toolbar_grid_toggle = document.getElementById("graph-grid-toggle");
+        this.toolbar_grid_toggle.onclick = event => this._toggle_grid(event);
 
         /*
          * Initialize the tooltip.
@@ -237,9 +241,11 @@ export class Graph {
      * Draw the axes.
      */
     _axes() {
+        const font_px = 15;
         const margin_px = 10;
-        this.graph_ctx.fillStyle = "white";
-        this.graph_ctx.font = "15px Arial";
+        this.graph_ctx.strokeStyle = "#444444";
+        this.graph_ctx.fillStyle = "#FFFFFF";
+        this.graph_ctx.font = `${font_px}px Arial`;
 
         /*
          * X axis (date).
@@ -248,6 +254,13 @@ export class Graph {
         const x_labels = time_labels(this.start, this.end, x_points);
         for (const x_label of x_labels) {
             const x_px = this.x_scale * (x_label[0] - this.start);
+            if (this.settings.show_grid) {
+                this.graph_ctx.beginPath();
+                this.graph_ctx.moveTo(x_px, this.graph_layer.height);
+                this.graph_ctx.lineTo(x_px, 0);
+                this.graph_ctx.stroke();
+            }
+
             this.graph_ctx.fillText(`${x_label[1]}`, x_px, this.graph_layer.height - margin_px);
         }
 
@@ -259,7 +272,14 @@ export class Graph {
         for (const y_label of y_labels) {
             const y_px = this.y_scale * (this.max_y - y_label);
             if (this.graph_layer.height - y_px > 2 * margin_px) {
-                this.graph_ctx.fillText(`${y_label}`, margin_px, y_px);
+                if (this.settings.show_grid) {
+                    this.graph_ctx.beginPath();
+                    this.graph_ctx.moveTo(0, y_px);
+                    this.graph_ctx.lineTo(this.graph_layer.width, y_px);
+                    this.graph_ctx.stroke();
+                }
+
+                this.graph_ctx.fillText(`${y_label}`, margin_px, y_px + (font_px / 2));
             }
         }
     }
@@ -638,6 +658,14 @@ export class Graph {
      */
     _toggle_points() {
         this.settings.show_points = !this.settings.show_points;
+        this._graph_layer();
+    }
+
+    /**
+     * Toggle the show_grid config.
+     */
+    _toggle_grid() {
+        this.settings.show_grid = !this.settings.show_grid;
         this._graph_layer();
     }
 }
