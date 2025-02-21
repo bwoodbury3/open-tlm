@@ -102,7 +102,7 @@ export class Graph {
         this.tooltip_value = document.getElementById("tooltip-value");
         this.tooltip_timestamp = document.getElementById("tooltip-timestamp");
 
-        addEventListener("resize", event => this._on_resize());
+        addEventListener("resize", event => this.resize());
 
         this._toolbar();
         this._refresh();
@@ -125,6 +125,17 @@ export class Graph {
      */
     remove_dataset(dataset_id) {
         delete this.datasets[dataset_id];
+        this._graph_layer();
+    }
+
+    /*
+     * Resize and redraw the canvas.
+     */
+    resize() {
+        this.graph_layer.width = this.graph_layer.offsetWidth;
+        this.graph_layer.height = this.graph_layer.offsetHeight;
+        this.interact_layer.width = this.interact_layer.offsetWidth;
+        this.interact_layer.height = this.interact_layer.offsetHeight;
         this._graph_layer();
     }
 
@@ -158,17 +169,6 @@ export class Graph {
             return;
         }
         this.datasets[dataset_id] = data;
-        this._graph_layer();
-    }
-
-    /*
-     * Resize and redraw the canvas.
-     */
-    _on_resize() {
-        this.graph_layer.width = this.graph_layer.offsetWidth;
-        this.graph_layer.height = this.graph_layer.offsetHeight;
-        this.interact_layer.width = this.interact_layer.offsetWidth;
-        this.interact_layer.height = this.interact_layer.offsetHeight;
         this._graph_layer();
     }
 

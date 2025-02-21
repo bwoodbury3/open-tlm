@@ -34,3 +34,7 @@ html, body {
 .btn-enabled {
     background-color: var(--bs-btn-active-bg);
 }
+
+.horizontal-drag:hover {
+    cursor: w-resize;
+}

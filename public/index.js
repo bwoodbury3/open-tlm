@@ -1,4 +1,5 @@
 import { Graph } from "/public/graph.js";
+import { ResizableDiv } from "/public/resizable.js";
 import { SearchBar } from "/public/search.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -23,4 +24,6 @@ window.addEventListener('load', function () {
     search_bar = new SearchBar(search_input, search_results, (dataset_id) => {
         graph.add_dataset(dataset_id);
     });
+
+    const left_pane = new ResizableDiv("left-pane", "left-pane-drag-handle", () => graph.resize());
 });

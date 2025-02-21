@@ -19,20 +19,26 @@
 
     <body>
         <div class="h-100">
-            <div class="row h-100 w-100 m-0 overflow-hidden">
-                <!-- Search bar -->
-                <div class="col-md-3 p-2 h-100 bg-color-primary">
+            <div class="row h-100 w-100 m-0 overflow-hidden d-flex">
+                <!-- Left Pane -->
+                <!-- Width is hardocoded here but is modifiable with click-drag -->
+                <div class="p-2 h-100 bg-color-primary" id="left-pane" style="width: 20rem;">
+                    <!-- Search Bar -->
                     <div class="form-group">
                         <input class="form-control" id="dataset-search-input" placeholder="telemetry name" type="text">
                     </div>
+
+                    <!-- Search Results -->
                     <div class="m-2 h-100 w-100 overflow-auto" id="dataset-search-results">
                         <p><i>Search for something!</i></p>
                     </div>
                 </div>
 
+                <div class="h-100 p-0 m-0 horizontal-drag bg-color-primary" id="left-pane-drag-handle" style="width: 10px;"></div>
+
                 <!-- Graph -->
-                <div class="col-md-9 p-2 h-100 d-flex flex-column">
-                    <div class="row border-bottom pb-2">
+                <div class="w-auto p-0 h-100 d-flex flex-column flex-grow-1">
+                    <div class="row border-bottom p-2 m-0">
                         <div class="btn-group bg-dark w-auto">
                             <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-in">
                                 <img src="public/icons/zoom-in.svg" class="img-fluid h-100">
@@ -54,7 +60,7 @@
                             </button>
                         </div>
                     </div>
-                    <div class="row flex-grow-1 floating-parent">
+                    <div class="row flex-grow-1 floating-parent m-0 p-0">
                         <canvas id="layer-graph" class="w-100 h-100 p-0 floating-0 z-0"></canvas>
                         <canvas id="layer-interact" class="w-100 h-100 p-0 floating-0 z-1"></canvas>
                         <div id="legend" class="w-auto mh-50 mw-25 p-2 border rounded floating-10 bg-color-primary z-2"></div>
