@@ -9,7 +9,6 @@ const DATA_ENDPOINT = "/api/data";
  *
  * UX improvements
  *      - Multiple axes
- *      - Pan
  *      - Collapse or resize the searchbar
  *      - Remember settings in cookies
  *
@@ -36,11 +35,12 @@ export class Graph {
         this.datasets = {};
         this.colors = {};
         this.settings = {
+            mouse_mode: MouseMode.ZOOM,
+            show_grid: true,
             show_points: true,
             point_width: 4,
-
-            show_grid: true,
-        }
+            min_zoom_threshold: 20,
+        };
 
         this.color_picker = new ColorPicker();
         this.refresh_task_queue = new TaskQueue(1, 1);
@@ -70,11 +70,11 @@ export class Graph {
         /*
          * Initialize the zoom tool.
          */
-        this.zoomer = new Zoomer();
-        this.interact_layer.addEventListener("mousedown", event => this._zoom_start(event));
-        this.interact_layer.addEventListener("mouseup", event => this._zoom_end(event));
-        this.interact_layer.addEventListener("mouseleave", event => this._zoom_cancel());
-        this.interact_layer.addEventListener("mousemove", event => this._zoom_move(event));
+        this.drag_state = new DragState();
+        this.interact_layer.addEventListener("mousedown", event => this._mouse_down(event));
+        this.interact_layer.addEventListener("mouseup", event => this._mouse_up(event));
+        this.interact_layer.addEventListener("mouseleave", event => this._mouse_leave());
+        this.interact_layer.addEventListener("mousemove", event => this._mouse_move(event));
         this.interact_layer.addEventListener("wheel", event => this._zoom_mousewheel(event));
 
         /*
@@ -88,6 +88,10 @@ export class Graph {
         this.toolbar_point_toggle.onclick = event => this._toggle_points(event);
         this.toolbar_grid_toggle = document.getElementById("graph-grid-toggle");
         this.toolbar_grid_toggle.onclick = event => this._toggle_grid(event);
+        this.toolbar_mouse_zoom = document.getElementById("graph-mouse-zoom");
+        this.toolbar_mouse_zoom.onclick = event => this._set_mouse_mode(MouseMode.ZOOM);
+        this.toolbar_mouse_pan = document.getElementById("graph-mouse-pan");
+        this.toolbar_mouse_pan.onclick = event => this._set_mouse_mode(MouseMode.PAN);
 
         /*
          * Initialize the tooltip.
@@ -184,6 +188,11 @@ export class Graph {
         this._calculate_pixel_coordinate_frame();
 
         /*
+         * Redraw the axes.
+         */
+        this._axes();
+
+        /*
          * Pick all of the colors.
          */
         for (const dataset_id in this.datasets) {
@@ -226,11 +235,6 @@ export class Graph {
                 }
             }
         }
-
-        /*
-         * Redraw the axes.
-         */
-        this._axes();
 
         /*
          * Redraw the legend.
@@ -329,22 +333,32 @@ export class Graph {
         const width = this.interact_layer.width;
         this.interact_ctx.clearRect(0, 0, width, height);
 
-        /*
-         * If we're zooming, gray out the area outside the zoom range.
-         */
-        if (this.zoomer.zooming && this.zoomer.should_zoom()) {
-            this.interact_ctx.fillStyle = 'rgba(225,225,225,0.1)';
+        if (this.settings.mouse_mode == MouseMode.ZOOM) {
+            /*
+             * If we're dragging in zoom mode, gray out the area outside the zoom range.
+             */
+            if (this.drag_state.in_progress && this.drag_state.should_zoom(this.settings.min_zoom_threshold)) {
+                this.interact_ctx.fillStyle = 'rgba(225,225,225,0.1)';
 
-            if (this.zoomer.axis === "x") {
-                const min_x = Math.min(this.zoomer.x0, this.zoomer.x1);
-                const max_x = Math.max(this.zoomer.x0, this.zoomer.x1);
-                this.interact_ctx.fillRect(0, 0, min_x, height);
-                this.interact_ctx.fillRect(max_x, 0, width - max_x, height);
-            } else if (this.zoomer.axis === "y") {
-                const min_y = Math.min(this.zoomer.y0, this.zoomer.y1);
-                const max_y = Math.max(this.zoomer.y0, this.zoomer.y1);
-                this.interact_ctx.fillRect(0, 0, width, min_y);
-                this.interact_ctx.fillRect(0, max_y, width, height - max_y);
+                if (this.drag_state.axis === "x") {
+                    const min_x = Math.min(this.drag_state.x0, this.drag_state.x1);
+                    const max_x = Math.max(this.drag_state.x0, this.drag_state.x1);
+                    this.interact_ctx.fillRect(0, 0, min_x, height);
+                    this.interact_ctx.fillRect(max_x, 0, width - max_x, height);
+                } else if (this.drag_state.axis === "y") {
+                    const min_y = Math.min(this.drag_state.y0, this.drag_state.y1);
+                    const max_y = Math.max(this.drag_state.y0, this.drag_state.y1);
+                    this.interact_ctx.fillRect(0, 0, width, min_y);
+                    this.interact_ctx.fillRect(0, max_y, width, height - max_y);
+                }
+            }
+        } else if (this.settings.mouse_mode == MouseMode.PAN) {
+            /*
+             * If we're dragging in pan mode, gray out the window slightly
+             */
+            if (this.drag_state.in_progress) {
+                this.interact_ctx.fillStyle = 'rgba(225,225,225,0.05)';
+                this.interact_ctx.fillRect(0, 0, width, height);
             }
         }
     }
@@ -363,6 +377,14 @@ export class Graph {
             this.toolbar_grid_toggle.classList.add("btn-enabled");
         } else {
             this.toolbar_grid_toggle.classList.remove("btn-enabled");
+        }
+
+        if (this.settings.mouse_mode == MouseMode.ZOOM) {
+            this.toolbar_mouse_zoom.classList.add("btn-enabled");
+            this.toolbar_mouse_pan.classList.remove("btn-enabled");
+        } else {
+            this.toolbar_mouse_zoom.classList.remove("btn-enabled");
+            this.toolbar_mouse_pan.classList.add("btn-enabled");
         }
     }
 
@@ -509,43 +531,82 @@ export class Graph {
     }
 
     /**
-     * Handle the start of a zoom event.
+     * Handle a mouse down event.
      *
      * @param {*} event
      */
-    _zoom_start(event) {
-        this.zoomer.mouse_down(event.offsetX, event.offsetY);
+    _mouse_down(event) {
+        this.drag_state.mouse_down(event.offsetX, event.offsetY);
+    }
+
+    /**
+     * Handle a mouse move event.
+     *
+     * @param {*} event
+     */
+    _mouse_move(event) {
+        if (!this.drag_state.in_progress) {
+            return;
+        }
+
+        this.drag_state.mouse_drag(event.offsetX, event.offsetY);
+        this._interact_layer();
+
+        if (this.settings.mouse_mode == MouseMode.PAN) {
+            this._pan_move();
+        }
+    }
+
+    /**
+     * Handle a mouse up event.
+     *
+     * @param {*} event
+     */
+    _mouse_up(event) {
+        if (!this.drag_state.in_progress) {
+            return;
+        }
+
+        this.drag_state.mouse_up(event.offsetX, event.offsetY);
+        this._interact_layer();
+
+        if (this.settings.mouse_mode == MouseMode.ZOOM) {
+            this._zoom_end();
+        }
+    }
+
+    /**
+     * Handle a mouse leave event.
+     *
+     * @param {*} event
+     */
+    _mouse_leave() {
+        this.drag_state.cancel();
+        this._interact_layer();
     }
 
     /**
      * Handle the end of a zoom event.
-     *
-     * @param {*} event
      */
-    _zoom_end(event) {
-        if (!this.zoomer.zooming) {
-            return;
-        }
-
-        this.zoomer.mouse_up(event.offsetX, event.offsetY);
-        this._interact_layer();
-
-        if (!this.zoomer.should_zoom()) {
+    _zoom_end() {
+        if (!this.drag_state.should_zoom(this.settings.min_zoom_threshold)) {
             return;
         }
 
         /*
          * Set the new x axis bounds.
          */
-        if (this.zoomer.axis === "x") {
+        if (this.drag_state.axis === "x") {
             const x_range = this.end - this.start;
             if (x_range < 5) {
                 return;
             }
 
-            const x_scale = this.interact_layer.width / x_range;
-            this.end = this.start + this.zoomer.x1 / x_scale;
-            this.start = this.start + this.zoomer.x0 / x_scale;
+            const x0 = Math.min(this.drag_state.x0, this.drag_state.x1);
+            const x1 = Math.max(this.drag_state.x0, this.drag_state.x1);
+
+            this.end = this.start + (x1 / this.x_scale);
+            this.start = this.start + (x0 / this.x_scale);
         } else {
             /*
              * TODO y axis zoom.
@@ -560,28 +621,6 @@ export class Graph {
     }
 
     /**
-     * Cancel a zoom event.
-     */
-    _zoom_cancel() {
-        this.zoomer.cancel();
-        this._interact_layer();
-    }
-
-    /**
-     * Handle a zoom in progress.
-     *
-     * @param {*} event
-     */
-    _zoom_move(event) {
-        if (!this.zoomer.zooming) {
-            return;
-        }
-
-        this.zoomer.mouse_drag(event.offsetX, event.offsetY);
-        this._interact_layer();
-    }
-
-    /**
      * Zoom handler for the mousewheel.
      *
      * The desired behavior in a mousewheel zoom is that the x coordinate at the cursor
@@ -590,7 +629,7 @@ export class Graph {
      * @param {*} event
      */
     _zoom_mousewheel(event) {
-        if (this.zoomer.axis === "y") {
+        if (this.drag_state.axis === "y") {
             /*
              * TODO y axis zoom.
              */
@@ -608,7 +647,7 @@ export class Graph {
      * @param {*} event
      */
     _zoom_in_button(event) {
-        if (this.zoomer.axis === "y") {
+        if (this.drag_state.axis === "y") {
             /*
              * TODO y axis zoom.
              */
@@ -626,7 +665,7 @@ export class Graph {
      * @param {*} event
      */
     _zoom_out_button(event) {
-        if (this.zoomer.axis === "y") {
+        if (this.drag_state.axis === "y") {
             /*
              * TODO y axis zoom.
              */
@@ -671,6 +710,38 @@ export class Graph {
         this._refresh();
     }
 
+    /*
+     * Handle interactive pan
+     */
+
+    /**
+     * Handle the panning of the window on mouse move.
+     *
+     * @param {*} event
+     *
+     * @returns
+     */
+    _pan_move(event) {
+        /*
+         * Set the new x axis bounds.
+         */
+        if (this.drag_state.axis === "x") {
+            const pan_dist = -this.drag_state.dx / this.x_scale;
+            this.start += pan_dist;
+            this.end += pan_dist;
+        } else {
+            /*
+             * TODO y axis pan.
+             */
+        }
+
+        /*
+         * Draw the graph immediately for instant gratificaiton.
+         */
+        this._graph_layer();
+        this._refresh();
+    }
+
     /**
      * Toggle the show_points config.
      */
@@ -688,67 +759,75 @@ export class Graph {
         this._toolbar();
         this._graph_layer();
     }
+
+    /**
+     * Toggle the mouse mode to zoom.
+     */
+    _set_mouse_mode(mouse_mode) {
+        this.settings.mouse_mode = mouse_mode;
+        this._toolbar();
+    }
 }
 
 /**
- * Class which tracks the state of a zoom.
+ * Enum for mouse modes.
  */
-class Zoomer {
+class MouseMode {
+    static ZOOM = "zoom";
+    static PAN = "pan";
+}
+
+/**
+ * Class which tracks the state of a drag event.
+ */
+class DragState {
     /**
      * Constructor.
      */
     constructor() {
-        this.zoom_threshold = 20;
-        this.zooming = false;
+        this.in_progress = false;
         this.axis = "x";
         this.x0 = -1;
         this.y0 = -1;
         this.x1 = -1;
         this.y1 = -1;
+        this.dx = 0;
+        this.dy = 0;
     }
 
     mouse_down(x, y) {
-        this.zooming = true;
+        this.in_progress = true;
         this.x0 = x;
         this.y0 = y;
+        this.x1 = x;
+        this.y1 = y;
     }
 
     mouse_drag(x, y) {
+        this.dx = x - this.x1;
+        this.dy = y - this.y1;
         this.x1 = x;
         this.y1 = y;
     }
 
     mouse_up(x, y) {
-        this.zooming = false;
-
+        this.in_progress = false;
+        this.dx = x - this.x1;
+        this.dy = y - this.y1;
         this.x1 = x;
         this.y1 = y;
-
-        /*
-         * Ensure x0 & y0 is always smaller.
-         */
-        if (this.x1 < this.x0) {
-            const tmp = this.x0;
-            this.x0 = this.x1;
-            this.x1 = tmp;
-        }
-        if (this.y1 < this.y0) {
-            const tmp = this.y0;
-            this.y0 = this.y1;
-            this.y1 = tmp;
-        }
     }
 
     cancel() {
-        this.zooming = false;
+        this.in_progress = false;
     }
 
-    should_zoom() {
+    should_zoom(threshold) {
         if (this.axis == "x") {
-            return Math.abs(this.x1 - this.x0) > this.zoom_threshold;
+            return Math.abs(this.x1 - this.x0) > threshold;
         }
         if (this.axis == "y") {
-            return Math.abs(this.y1 - this.y0) > this.zoom_threshold;
+            return Math.abs(this.y1 - this.y0) > threshold;
         }
     }
 }
