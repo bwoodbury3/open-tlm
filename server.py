@@ -5,6 +5,7 @@ import pathlib
 from flask import Flask, render_template, request, send_from_directory
 
 from src.index import Index
+from src.metrics import loop
 from src.model.data import Datapoint, TimeSeriesDataset
 
 
@@ -99,4 +100,6 @@ def post_data():
     return {"message": f"{count} datapoints were posted"}, 200
 
 
-app.run(port=args.port)
+if __name__ == "__main__":
+    loop.run_in_background(_index)
+    app.run(port=args.port)

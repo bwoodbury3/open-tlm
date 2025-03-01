@@ -553,7 +553,7 @@ export class Graph {
         this._interact_layer();
 
         if (this.settings.mouse_mode == MouseMode.PAN) {
-            this._pan_move();
+            this._pan_move(event, false);
         }
     }
 
@@ -572,6 +572,8 @@ export class Graph {
 
         if (this.settings.mouse_mode == MouseMode.ZOOM) {
             this._zoom_end();
+        } else if (this.settings.mouse_mode == MouseMode.PAN) {
+            this._pan_move(event, true);
         }
     }
 
@@ -718,10 +720,11 @@ export class Graph {
      * Handle the panning of the window on mouse move.
      *
      * @param {*} event
+     * @param {boolean} refresh Whether to refresh data at the backend.
      *
      * @returns
      */
-    _pan_move(event) {
+    _pan_move(event, refresh) {
         /*
          * Set the new x axis bounds.
          */
@@ -739,7 +742,10 @@ export class Graph {
          * Draw the graph immediately for instant gratificaiton.
          */
         this._graph_layer();
-        this._refresh();
+        if (refresh)
+        {
+            this._refresh();
+        }
     }
 
     /**

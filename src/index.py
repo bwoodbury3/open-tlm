@@ -90,6 +90,8 @@ class Index:
             path: The path on disk where the data is stored.
         """
         self.base = path / "data"
+        self.num_puts = 0
+        self.num_gets = 0
 
         self._init_backing_store()
 
@@ -101,6 +103,8 @@ class Index:
             dataset_id: The ID of the dataset.
             points: The points to insert.
         """
+        self.num_puts += 1
+
         if "/" in dataset_id or dataset_id == "..":
             raise ValueError("Illegal dataset ID")
 
@@ -185,6 +189,8 @@ class Index:
 
         Returns: A list of datapoints covering this window, possible aggregated.
         """
+        self.num_gets += 1
+
         if fidelity is None:
             fidelity = self._recommended_fidelity(start_dt, end_dt)
 
