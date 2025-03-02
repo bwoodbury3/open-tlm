@@ -27,6 +27,8 @@ Navigate your browser to `localhost:8080`. `open-tlm` logs some internal metrics
 
 ## Posting Data
 
+To upload an existing dataset, use the script in `examples/upload_data.py`.
+
 An official API doc is not available yet, but check out the `examples` directory in this repository for some simple examples. Learning by example is better anyway.
 
 ## Acknowledgements and Caveats

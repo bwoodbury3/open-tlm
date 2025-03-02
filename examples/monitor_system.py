@@ -12,7 +12,7 @@ import requests
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="monitor_system.py",
-        description="Monitor some local files and post to the telemetry API",
+        description="Monitor system utilization and post to the telemetry API",
     )
     parser.add_argument(
         "--host",
