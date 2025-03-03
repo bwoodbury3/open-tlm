@@ -92,6 +92,8 @@ export class Graph {
         this.toolbar_mouse_zoom.onclick = event => this._set_mouse_mode(MouseMode.ZOOM);
         this.toolbar_mouse_pan = document.getElementById("graph-mouse-pan");
         this.toolbar_mouse_pan.onclick = event => this._set_mouse_mode(MouseMode.PAN);
+        this.toolbar_refresh = document.getElementById("graph-refresh");
+        this.toolbar_refresh.onclick = event => this._refresh();
 
         /*
          * Initialize the tooltip.
