@@ -9,7 +9,6 @@ const DATA_ENDPOINT = "/api/data";
  *
  * UX improvements
  *      - Multiple axes
- *      - Collapse or resize the searchbar
  *      - Remember settings in cookies
  *
  * System features
@@ -484,6 +483,13 @@ export class Graph {
      * @param {*} event
      */
     _maybe_tooltip(event) {
+        /*
+         * Refuse to render the tooltip if we're dragging/zooming something.
+         */
+        if (this.drag_state.in_progress) {
+            return;
+        }
+
         const point_width = this.settings.point_width;
         const mouse_x = event.offsetX;
         const mouse_y = event.offsetY;
