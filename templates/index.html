@@ -15,6 +15,9 @@
 
         <!-- Javascript -->
         <script src="public/index.js" type="module"></script>
+
+        <!-- Logo -->
+        <link rel="icon" href="public/icons/logo-small.svg">
     </head>
 
     <body>
@@ -22,7 +25,12 @@
             <div class="h-100 w-100 m-0 overflow-hidden d-flex">
                 <!-- Left Pane -->
                 <!-- Width is hardocoded here but is modifiable with click-drag -->
-                <div class="p-2 h-100 bg-color-primary" id="left-pane" style="width: 20rem;">
+                <div class="px-2 h-100 bg-color-primary" id="left-pane" style="width: 20rem;">
+                    <!-- Banner -->
+                    <div class="text-center">
+                        <img src="public/icons/logo-large.svg" class="img-fluid m-2">
+                    </div>
+
                     <!-- Search Bar -->
                     <div class="form-group">
                         <input class="form-control" id="dataset-search-input" placeholder="telemetry name" type="text">
@@ -42,33 +50,34 @@
                     <div class="row border-bottom p-2 m-0">
                         <div class="col">
                             <div class="btn-group bg-dark w-auto">
-                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-in">
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-in" title="Zoom in">
                                     <img src="public/icons/zoom-in.svg" class="img-fluid h-100">
                                 </button>
-                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-out">
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-out" title="Zoom out">
                                     <img src="public/icons/zoom-out.svg" class="img-fluid h-100">
                                 </button>
-                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-point-toggle">
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-point-toggle" title="Toggle points">
                                     <img src="public/icons/point.svg" class="img-fluid h-100">
                                 </button>
-                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-grid-toggle">
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-grid-toggle" title="Toggle grid">
                                     <img src="public/icons/grid.svg" class="img-fluid h-100">
                                 </button>
-                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-mouse-zoom">
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-mouse-zoom" title="Toggle mouse zoom mode">
                                     <img src="public/icons/zoom.svg" class="img-fluid h-100">
                                 </button>
-                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-mouse-pan">
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-mouse-pan" title="Toggle mouse pan mode">
                                     <img src="public/icons/move.svg" class="img-fluid h-100">
                                 </button>
-                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-refresh">
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-refresh" title="Refresh the graph">
                                     <img src="public/icons/refresh.svg" class="img-fluid h-100">
                                 </button>
                             </div>
                         </div>
                         <div class="col d-flex">
                             <div class="input-group w-auto ms-auto">
-                                <input class="date-input" id="start-datetime" type="text">
-                                <input class="date-input" id="end-datetime" type="text">
+                                <input class="date-input mx-1" id="start-datetime" type="text">
+                                <span class="align-text-middle my-auto text-secondary">to</span>
+                                <input class="date-input mx-1" id="end-datetime" type="text">
                             </div>
                         </div>
                     </div>
