@@ -38,3 +38,22 @@ html, body {
 .horizontal-drag:hover {
     cursor: w-resize;
 }
+
+.input-invalid {
+    color: #cf6d55;
+}
+
+.date-input {
+    width: 15em;
+    text-align: center;
+
+    /* The input field looks like normal text until you focus it */
+    border: none;
+    outline: none;
+    background-color: transparent;
+}
+
+.date-input:focus {
+    border: var(--bs-border-width) solid var(--bs-border-color);
+    background-color: var(--bs-body-bg);
+}

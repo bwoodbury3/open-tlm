@@ -96,6 +96,14 @@ export class Graph {
         this.toolbar_refresh.onclick = event => this._refresh();
 
         /*
+         * Initialize the datetime picker.
+         */
+        this.start_datetime = document.getElementById("start-datetime");
+        this.end_datetime = document.getElementById("end-datetime");
+        this.start_datetime.addEventListener("focusout", event => this._on_datetime_change());
+        this.end_datetime.addEventListener("focusout", event => this._on_datetime_change());
+
+        /*
          * Initialize the tooltip.
          */
         this.interact_layer.addEventListener("mousemove", event => this._maybe_tooltip(event));
@@ -193,6 +201,11 @@ export class Graph {
          * Redraw the axes.
          */
         this._axes();
+
+        /*
+         * Update the datetime input fields.
+         */
+        this._update_datetime();
 
         /*
          * Pick all of the colors.
@@ -774,6 +787,42 @@ export class Graph {
     _set_mouse_mode(mouse_mode) {
         this.settings.mouse_mode = mouse_mode;
         this._toolbar();
+    }
+
+    /**
+     * Update the start/end time fields and any necessary error handling.
+     */
+    _update_datetime() {
+        this.start_datetime.value = new Date(this.start).toISOString();
+        this.end_datetime.value = new Date(this.end).toISOString();
+
+        if (this.start >= this.end) {
+            this.start_datetime.classList.add("input-invalid");
+            this.end_datetime.classList.add("input-invalid");
+        } else {
+            this.start_datetime.classList.remove("input-invalid");
+            this.end_datetime.classList.remove("input-invalid");
+        }
+    }
+
+    /*
+     * Callback for when the datetime input field has changed.
+     */
+    _on_datetime_change() {
+        const start_input = new Date(this.start_datetime.value).getTime();
+        const end_input = new Date(this.end_datetime.value).getTime();
+        if (start_input >= end_input) {
+            this.start_datetime.classList.add("input-invalid");
+            this.end_datetime.classList.add("input-invalid");
+        } else {
+            this.start_datetime.classList.remove("input-invalid");
+            this.end_datetime.classList.remove("input-invalid");
+            this.start = start_input;
+            this.end = end_input;
+
+            this._graph_layer();
+            this._refresh();
+        }
     }
 }
 

@@ -19,7 +19,7 @@
 
     <body>
         <div class="h-100">
-            <div class="row h-100 w-100 m-0 overflow-hidden d-flex">
+            <div class="h-100 w-100 m-0 overflow-hidden d-flex">
                 <!-- Left Pane -->
                 <!-- Width is hardocoded here but is modifiable with click-drag -->
                 <div class="p-2 h-100 bg-color-primary" id="left-pane" style="width: 20rem;">
@@ -38,31 +38,42 @@
 
                 <!-- Graph -->
                 <div class="w-auto p-0 h-100 d-flex flex-column flex-grow-1">
+                    <!-- Toolbar -->
                     <div class="row border-bottom p-2 m-0">
-                        <div class="btn-group bg-dark w-auto">
-                            <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-in">
-                                <img src="public/icons/zoom-in.svg" class="img-fluid h-100">
-                            </button>
-                            <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-out">
-                                <img src="public/icons/zoom-out.svg" class="img-fluid h-100">
-                            </button>
-                            <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-point-toggle">
-                                <img src="public/icons/point.svg" class="img-fluid h-100">
-                            </button>
-                            <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-grid-toggle">
-                                <img src="public/icons/grid.svg" class="img-fluid h-100">
-                            </button>
-                            <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-mouse-zoom">
-                                <img src="public/icons/zoom.svg" class="img-fluid h-100">
-                            </button>
-                            <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-mouse-pan">
-                                <img src="public/icons/move.svg" class="img-fluid h-100">
-                            </button>
-                            <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-refresh">
-                                <img src="public/icons/refresh.svg" class="img-fluid h-100">
-                            </button>
+                        <div class="col">
+                            <div class="btn-group bg-dark w-auto">
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-in">
+                                    <img src="public/icons/zoom-in.svg" class="img-fluid h-100">
+                                </button>
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-zoom-out">
+                                    <img src="public/icons/zoom-out.svg" class="img-fluid h-100">
+                                </button>
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-point-toggle">
+                                    <img src="public/icons/point.svg" class="img-fluid h-100">
+                                </button>
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-grid-toggle">
+                                    <img src="public/icons/grid.svg" class="img-fluid h-100">
+                                </button>
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-mouse-zoom">
+                                    <img src="public/icons/zoom.svg" class="img-fluid h-100">
+                                </button>
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-mouse-pan">
+                                    <img src="public/icons/move.svg" class="img-fluid h-100">
+                                </button>
+                                <button type="button" class="btn btn-dark rounded-0 border-0 p-0" id="graph-refresh">
+                                    <img src="public/icons/refresh.svg" class="img-fluid h-100">
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col d-flex">
+                            <div class="input-group w-auto ms-auto">
+                                <input class="date-input" id="start-datetime" type="text">
+                                <input class="date-input" id="end-datetime" type="text">
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Graph canvas -->
                     <div class="row flex-grow-1 floating-parent m-0 p-0">
                         <canvas id="layer-graph" class="w-100 h-100 p-0 floating-0 z-0"></canvas>
                         <canvas id="layer-interact" class="w-100 h-100 p-0 floating-0 z-1"></canvas>
