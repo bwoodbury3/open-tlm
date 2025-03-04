@@ -94,16 +94,17 @@ export class YAxis {
     /**
      * @returns The number of datasets owned by this axis.
      */
-    length() {
+    num_datasets() {
         return Object.keys(this.datasets).length;
     }
 
     /**
      * Resize the y axis from the graph height.
      *
+     * @param {XAxis} x_axis The XAxis.
      * @param {Number} height The graph height in pixels.
      */
-    resize(height) {
+    resize(x_axis, height) {
         this.min_y = Number.MAX_VALUE;
         this.max_y = Number.MIN_VALUE;
 
@@ -114,8 +115,11 @@ export class YAxis {
             for (const dataset_id in this.datasets) {
                 const dataset = this.datasets[dataset_id];
                 for (const point of dataset.points) {
-                    this.min_y = Math.min(this.min_y, min_point_value(point));
-                    this.max_y = Math.max(this.max_y, max_point_value(point));
+                    const d = new Date(point.date).getTime();
+                    if (d >= x_axis.start_ms && d <= x_axis.end_ms) {
+                        this.min_y = Math.min(this.min_y, min_point_value(point));
+                        this.max_y = Math.max(this.max_y, max_point_value(point));
+                    }
                 }
             }
         }

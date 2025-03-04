@@ -8,7 +8,6 @@ const DATA_ENDPOINT = "/api/data";
  * TODO:
  *
  * UX improvements
- *      - Multiple axes
  *      - Remember settings in cookies
  *
  * System features
@@ -213,7 +212,7 @@ export class Graph {
          */
         this.x_axis.resize(this.start, this.end, this.graph_layer.width);
         for (const y_axis of this.y_axes) {
-            y_axis.resize(this.graph_layer.height);
+            y_axis.resize(this.x_axis, this.graph_layer.height);
         }
 
         /*
@@ -292,10 +291,11 @@ export class Graph {
     _axes() {
         const font_px = 15;
         const margin_px = 10;
-        const y_max_width = font_px * 5;
         this.graph_ctx.strokeStyle = "#444444";
         this.graph_ctx.fillStyle = "#FFFFFF";
         this.graph_ctx.font = `${font_px}px Arial`;
+        const width = this.graph_layer.width;
+        const height = this.graph_layer.height;
 
         /*
          * X axis (date).
@@ -307,23 +307,18 @@ export class Graph {
 
             if (this.settings.show_grid) {
                 this.graph_ctx.beginPath();
-                this.graph_ctx.moveTo(x_px, this.graph_layer.height);
+                this.graph_ctx.moveTo(x_px, height);
                 this.graph_ctx.lineTo(x_px, 0);
                 this.graph_ctx.stroke();
             }
 
-            this.graph_ctx.fillText(`${x_label[1]}`, x_px, this.graph_layer.height - margin_px);
+            this.graph_ctx.fillText(`${x_label[1]}`, x_px, height - margin_px);
         }
 
         /*
          * Y axis.
          */
         const y_points = 10;
-        const x_pos = {
-            0: margin_px,
-            1: this.graph_layer.width - y_max_width - margin_px,
-        };
-
         for (const axis_index in this.y_axes) {
             const y_axis = this.y_axes[axis_index];
             const y_labels = y_axis.labels(y_points);
@@ -334,36 +329,37 @@ export class Graph {
             /*
              * Only draw the axis labels if there is data on this axis.
              */
-            if (y_axis.length() === 0) {
+            if (y_axis.num_datasets() === 0) {
                 continue;
             }
 
             for (const y_label of y_labels) {
                 const y_px = y_axis.scale * (y_axis.max_y - y_label);
 
-                if (this.graph_layer.height - y_px > 2 * margin_px) {
+                if (height - y_px > 2 * margin_px) {
                     /*
                      * Draw the grid if it's enabled.
                      */
                     if (grid_enabled) {
                         this.graph_ctx.beginPath();
                         this.graph_ctx.moveTo(0, y_px);
-                        this.graph_ctx.lineTo(this.graph_layer.width, y_px);
+                        this.graph_ctx.lineTo(width, y_px);
                         this.graph_ctx.stroke();
                     }
 
                     /*
                      * Draw the axis label.
                      */
-                    var formatted = `${y_label}`;
-                    if (y_label < 0.001 || y_label > 100000) {
-                        formatted = y_label.toExponential(3);
+                    const exponential = (y_label != 0 && y_label < 0.001) || y_label > 100000;
+                    const formatted = exponential ? y_label.toExponential(3) : `${y_label}`;
+                    if (axis_index % 2 === 0) {
+                        this.graph_ctx.fillText(formatted, margin_px, y_px + (font_px / 2));
+                    } else {
+                        const text_width = this.graph_ctx.measureText(formatted).width;
+                        const x_pos = width - text_width - margin_px;
+                        console.log(this.graph_ctx.measureText(formatted));
+                        this.graph_ctx.fillText(formatted, x_pos, y_px + (font_px / 2));
                     }
-                    this.graph_ctx.fillText(
-                        formatted,
-                        x_pos[axis_index],
-                        y_px + (font_px / 2)
-                    );
                 }
             }
         }
@@ -378,7 +374,7 @@ export class Graph {
          */
         var any_data = false;
         for (const y_axis of this.y_axes) {
-            if (y_axis.length() > 0) {
+            if (y_axis.num_datasets() > 0) {
                 any_data = true;
                 break;
             }
