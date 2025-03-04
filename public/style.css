@@ -31,6 +31,11 @@ html, body {
     position: absolute;
 }
 
+.legend td {
+    background-color: transparent;
+    padding: 5px;
+}
+
 .btn-enabled {
     background-color: var(--bs-btn-active-bg);
 }
@@ -46,15 +51,20 @@ html, body {
 .date-input {
     width: 14em;
     text-align: center;
-    color: rgba(var(--bs-secondary-rgb));
+}
 
-    /* The input field looks like normal text until you focus it */
+/*
+ * An input field that looks like normal text until you focus it, at which point
+ * it becomes an input text box.
+ */
+.editable-text {
+    color: rgba(var(--bs-secondary-rgb));
     border: none;
     outline: none;
     background-color: transparent;
 }
 
-.date-input:focus {
+.editable-text:focus {
     color: fieldtext;
     border: var(--bs-border-width) solid var(--bs-border-color);
     background-color: var(--bs-body-bg);

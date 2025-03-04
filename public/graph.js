@@ -1,4 +1,4 @@
-import { base10_labels, time_labels } from "/public/axes.js";
+import { XAxis, YAxis } from "/public/axes.js";
 import { ColorPicker } from "/public/color.js";
 import { TaskQueue } from "/public/tasks.js";
 
@@ -31,11 +31,14 @@ export class Graph {
     constructor(start, end, dataset_ids) {
         this.start = start.getTime();
         this.end = end.getTime();
-        this.datasets = {};
+        this.x_axis = new XAxis();
+        this.y_axes = [new YAxis(), new YAxis()];
         this.colors = {};
+
         this.settings = {
             mouse_mode: MouseMode.ZOOM,
             show_grid: true,
+            grid_axis: 0,
             show_points: true,
             point_width: 4,
             min_zoom_threshold: 20,
@@ -124,7 +127,14 @@ export class Graph {
      * @param {String} dataset_id The dataset ID.
      */
     add_dataset(dataset_id) {
-        this._fetch(dataset_id);
+        for (const y_axis of this.y_axes) {
+            if (y_axis.has(dataset_id)) {
+                return;
+            }
+        }
+
+        this._graph_layer();
+        this._fetch(dataset_id, 0);
     }
 
     /**
@@ -133,7 +143,12 @@ export class Graph {
      * @param {String} dataset_id The dataset ID.
      */
     remove_dataset(dataset_id) {
-        delete this.datasets[dataset_id];
+        for (const y_axis of this.y_axes) {
+            if (y_axis.has(dataset_id)) {
+                y_axis.remove_dataset(dataset_id);
+            }
+        }
+
         this._graph_layer();
     }
 
@@ -153,8 +168,10 @@ export class Graph {
      */
     async _refresh() {
         this.refresh_task_queue.enqueue(async () => {
-            for (const dataset_id in this.datasets) {
-                await this._fetch(dataset_id);
+            for (const axis_index in this.y_axes) {
+                for (const dataset_id in this.y_axes[axis_index].datasets) {
+                    await this._fetch(dataset_id, axis_index);
+                }
             }
         })
     }
@@ -163,8 +180,9 @@ export class Graph {
      * Fetch data for a particular dataset.
      *
      * @param {String} dataset_id The dataset to fetch.
+     * @param {Number} axis_index The axis index.
      */
-    async _fetch(dataset_id) {
+    async _fetch(dataset_id, axis_index) {
         const params = new URLSearchParams({
             start: new Date(this.start).toISOString(),
             end: new Date(this.end).toISOString(),
@@ -177,7 +195,7 @@ export class Graph {
             console.log("Invalid response!");
             return;
         }
-        this.datasets[dataset_id] = data;
+        this.y_axes[axis_index].add_dataset(dataset_id, data);
         this._graph_layer();
     }
 
@@ -191,10 +209,20 @@ export class Graph {
         this.graph_ctx.clearRect(0, 0, this.graph_layer.width, this.graph_layer.height);
 
         /*
-         * Everytime the graph is redrawn, we recalculate the datasets in the pixel
-         * coordinate frame.
+         * Re-scale the axes.
          */
-        this._calculate_pixel_coordinate_frame();
+        this.x_axis.resize(this.start, this.end, this.graph_layer.width);
+        for (const y_axis of this.y_axes) {
+            y_axis.resize(this.graph_layer.height);
+        }
+
+        /*
+         * Calculate all of the pixelpoints.
+         */
+        this.pixelpoints = {};
+        for (const y_axis of this.y_axes) {
+            Object.assign(this.pixelpoints, y_axis.get_pixelpoints(this.x_axis));
+        }
 
         /*
          * Redraw the axes.
@@ -209,9 +237,11 @@ export class Graph {
         /*
          * Pick all of the colors.
          */
-        for (const dataset_id in this.datasets) {
-            if (!(dataset_id in this.colors)) {
-                this.colors[dataset_id] = this.color_picker.next();
+        for (const y_axis of this.y_axes) {
+            for (const dataset_id in y_axis.datasets) {
+                if (!(dataset_id in this.colors)) {
+                    this.colors[dataset_id] = this.color_picker.next();
+                }
             }
         }
 
@@ -262,6 +292,7 @@ export class Graph {
     _axes() {
         const font_px = 15;
         const margin_px = 10;
+        const y_max_width = font_px * 5;
         this.graph_ctx.strokeStyle = "#444444";
         this.graph_ctx.fillStyle = "#FFFFFF";
         this.graph_ctx.font = `${font_px}px Arial`;
@@ -270,9 +301,10 @@ export class Graph {
          * X axis (date).
          */
         const x_points = 6;
-        const x_labels = time_labels(this.start, this.end, x_points);
+        const x_labels = this.x_axis.labels(x_points);
         for (const x_label of x_labels) {
-            const x_px = this.x_scale * (x_label[0] - this.start);
+            const x_px = this.x_axis.scale * (x_label[0] - this.start);
+
             if (this.settings.show_grid) {
                 this.graph_ctx.beginPath();
                 this.graph_ctx.moveTo(x_px, this.graph_layer.height);
@@ -287,18 +319,52 @@ export class Graph {
          * Y axis.
          */
         const y_points = 10;
-        const y_labels = base10_labels(this.min_y, this.max_y, y_points);
-        for (const y_label of y_labels) {
-            const y_px = this.y_scale * (this.max_y - y_label);
-            if (this.graph_layer.height - y_px > 2 * margin_px) {
-                if (this.settings.show_grid) {
-                    this.graph_ctx.beginPath();
-                    this.graph_ctx.moveTo(0, y_px);
-                    this.graph_ctx.lineTo(this.graph_layer.width, y_px);
-                    this.graph_ctx.stroke();
-                }
+        const x_pos = {
+            0: margin_px,
+            1: this.graph_layer.width - y_max_width - margin_px,
+        };
 
-                this.graph_ctx.fillText(`${y_label}`, margin_px, y_px + (font_px / 2));
+        for (const axis_index in this.y_axes) {
+            const y_axis = this.y_axes[axis_index];
+            const y_labels = y_axis.labels(y_points);
+            const grid_enabled =
+                this.settings.show_grid &&
+                this.settings.grid_axis == axis_index;
+
+            /*
+             * Only draw the axis labels if there is data on this axis.
+             */
+            if (y_axis.length() === 0) {
+                continue;
+            }
+
+            for (const y_label of y_labels) {
+                const y_px = y_axis.scale * (y_axis.max_y - y_label);
+
+                if (this.graph_layer.height - y_px > 2 * margin_px) {
+                    /*
+                     * Draw the grid if it's enabled.
+                     */
+                    if (grid_enabled) {
+                        this.graph_ctx.beginPath();
+                        this.graph_ctx.moveTo(0, y_px);
+                        this.graph_ctx.lineTo(this.graph_layer.width, y_px);
+                        this.graph_ctx.stroke();
+                    }
+
+                    /*
+                     * Draw the axis label.
+                     */
+                    var formatted = `${y_label}`;
+                    if (y_label < 0.001 || y_label > 100000) {
+                        formatted = y_label.toExponential(3);
+                    }
+                    this.graph_ctx.fillText(
+                        formatted,
+                        x_pos[axis_index],
+                        y_px + (font_px / 2)
+                    );
+                }
             }
         }
     }
@@ -307,32 +373,57 @@ export class Graph {
      * Draw the legend.
      */
     _legend() {
-        this.legend.innerHTML = "";
-        if (Object.keys(this.datasets).length > 0) {
-            this.legend.style.visibility = "visible";
-        } else {
-            this.legend.style.visibility = "hidden";
+        /*
+         * Show or hide the legend.
+         */
+        var any_data = false;
+        for (const y_axis of this.y_axes) {
+            if (y_axis.length() > 0) {
+                any_data = true;
+                break;
+            }
         }
+        this.legend.style.visibility = any_data ? "visible" : "hidden";
 
         /*
          * Render all of the datasets in the legend.
          */
-        for (const dataset_id in this.datasets) {
-            this.legend.innerHTML += `
-                <p id="legend-${dataset_id}"
-                   class="clickable mb-0"
-                   style="color: ${this.colors[dataset_id]}">
-                    ${dataset_id}
-                </p>
-            `;
+        var legend_html = `<table class="legend">`;
+        for (const axis_index in this.y_axes) {
+            const y_axis = this.y_axes[axis_index];
+            for (const dataset_id in y_axis.datasets) {
+                const axis_indicator = axis_index == 0 ? "<" : ">";
+                legend_html += `
+                    <tr>
+                        <td class="text-secondary clickable" id="axis-toggle-${dataset_id}">
+                            <span title="Toggle vertical axis">
+                                ${axis_indicator}
+                            </span>
+                        </td>
+                        <td>
+                            <p id="legend-${dataset_id}"
+                                class="clickable mb-0"
+                                style="color: ${this.colors[dataset_id]}">
+                                ${dataset_id}
+                            </p>
+                        </td>
+                    </tr>
+                `;
+            }
         }
+        legend_html += "</table>";
+        this.legend.innerHTML = legend_html;
 
         /*
          * Render the handlers.
          */
-        for (const dataset_id in this.datasets) {
-            const legend_item = document.getElementById(`legend-${dataset_id}`);
-            legend_item.onclick = () => this.remove_dataset(dataset_id);
+        for (const axis of this.y_axes) {
+            for (const dataset_id in axis.datasets) {
+                const legend_item = document.getElementById(`legend-${dataset_id}`);
+                legend_item.onclick = () => this.remove_dataset(dataset_id);
+                const axis_toggle = document.getElementById(`axis-toggle-${dataset_id}`);
+                axis_toggle.onclick = () => this._toggle_axis(dataset_id);
+            }
         }
     }
 
@@ -403,68 +494,6 @@ export class Graph {
     }
 
     /**
-     * Scale all of the `datapoints` into the graph coordinate frame. Sets:
-     *      - this.pixelpoints: All of the datapoints in the pixel coordinate frame.
-     *          This is a mapping of dataset_id -> list[x,y] coordinates.
-     *      - thix.min_y: The minimum y point.
-     *      - thix.max_y: The maximum y point.
-     *      - this.x_scale: The x axis scale in pixels per millisecond.
-     *      - this.y_scale: The y axis scale in pixels per unit.
-     *
-     * This should be called before re-rendering the graph.
-     */
-    _calculate_pixel_coordinate_frame() {
-        /*
-         * Calculate the y axis bounds.
-         */
-        if (Object.keys(this.datasets).length > 0) {
-            this.min_y = Number.MAX_VALUE;
-            this.max_y = Number.MIN_VALUE;
-            for (const dataset_id in this.datasets) {
-                const dataset = this.datasets[dataset_id];
-                for (const point of dataset.points) {
-                    const value = this._get_value(point);
-                    this.min_y = Math.min(this.min_y, value);
-                    this.max_y = Math.max(this.max_y, value);
-                }
-            }
-        } else {
-            this.max_y = 1;
-            this.min_y = 0;
-        }
-
-        /*
-         * Grow the bounds by 10% so that points aren't right on the ceiling.
-         */
-        const y_range_before = this.max_y - this.min_y;
-        this.max_y += y_range_before * .05;
-        this.min_y -= y_range_before * .05;
-
-        const x_range = this.end - this.start;
-        const y_range = this.max_y - this.min_y;
-        this.x_scale = this.graph_layer.width / x_range;
-        this.y_scale = this.graph_layer.height / y_range;
-
-        /*
-         * Calculate all of the pixelpoints.
-         */
-        this.pixelpoints = {};
-        for (const dataset_id in this.datasets) {
-            const dataset = this.datasets[dataset_id];
-            const points = dataset.points;
-
-            var pixels = [];
-            for (const point of points) {
-                const d = new Date(point.date).getTime();
-                const x = this.x_scale * (d - this.start);
-                const y = this.y_scale * (this.max_y - this._get_value(point));
-                pixels.push([x, y]);
-            }
-            this.pixelpoints[dataset_id] = pixels;
-        }
-    }
-
-    /**
      * Extract the value from a point.
      *
      * @param {Object} point The Datapoint object.
@@ -502,22 +531,24 @@ export class Graph {
         /*
          * Detect mouse collision with any datapoints.
          */
-        for (const dataset_id of Object.keys(this.pixelpoints).reverse()) {
-            const points = this.pixelpoints[dataset_id];
-            for (const i in points) {
-                const point = points[i];
-                if (Math.abs(mouse_x - point[0]) <= point_width &&
-                        Math.abs(mouse_y - point[1]) <= point_width) {
-                    active = true;
-                    pixelpoint = point;
-                    datapoint = this.datasets[dataset_id].points[i];
-                    dataset = dataset_id;
+        for (const y_axis of this.y_axes) {
+            for (const dataset_id of Object.keys(y_axis.datasets).reverse()) {
+                const points = this.pixelpoints[dataset_id];
+                for (const i in points) {
+                    const point = points[i];
+                    if (Math.abs(mouse_x - point[0]) <= point_width &&
+                            Math.abs(mouse_y - point[1]) <= point_width) {
+                        active = true;
+                        pixelpoint = point;
+                        datapoint = y_axis.datasets[dataset_id].points[i];
+                        dataset = dataset_id;
+                        break;
+                    }
+                }
+
+                if (active) {
                     break;
                 }
-            }
-
-            if (active) {
-                break;
             }
         }
 
@@ -628,8 +659,8 @@ export class Graph {
             const x0 = Math.min(this.drag_state.x0, this.drag_state.x1);
             const x1 = Math.max(this.drag_state.x0, this.drag_state.x1);
 
-            this.end = this.start + (x1 / this.x_scale);
-            this.start = this.start + (x0 / this.x_scale);
+            this.end = this.start + (x1 / this.x_axis.scale);
+            this.start = this.start + (x0 / this.x_axis.scale);
         } else {
             /*
              * TODO y axis zoom.
@@ -750,7 +781,7 @@ export class Graph {
          * Set the new x axis bounds.
          */
         if (this.drag_state.axis === "x") {
-            const pan_dist = -this.drag_state.dx / this.x_scale;
+            const pan_dist = -this.drag_state.dx / this.x_axis.scale;
             this.start += pan_dist;
             this.end += pan_dist;
         } else {
@@ -811,7 +842,7 @@ export class Graph {
         }
     }
 
-    /*
+    /**
      * Callback for when the datetime input field has changed.
      */
     _on_datetime_change() {
@@ -829,6 +860,26 @@ export class Graph {
             this._graph_layer();
             this._refresh();
         }
+    }
+
+    /**
+     * Toggle the axis for a dataset.
+     *
+     * @param {String} dataset_id
+     */
+    _toggle_axis(dataset_id) {
+        if (this.y_axes[0].has(dataset_id)) {
+            const data = this.y_axes[0].remove_dataset(dataset_id);
+            this.y_axes[1].add_dataset(dataset_id, data);
+        } else {
+            const data = this.y_axes[1].remove_dataset(dataset_id);
+            this.y_axes[0].add_dataset(dataset_id, data);
+        }
+
+        /*
+         * Redraw the graph. Shouldn't need to fetch new data here.
+         */
+        this._graph_layer();
     }
 }
 
