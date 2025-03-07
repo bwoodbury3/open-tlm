@@ -91,13 +91,29 @@
                     <!-- Graph canvas -->
                     <div class="row flex-grow-1 floating-parent m-0 p-0">
                         <canvas id="layer-graph" class="w-100 h-100 p-0 floating-0 z-0"></canvas>
+                        <canvas id="layer-comments" class="w-100 h-100 p-0 floating-0 z-0"></canvas>
                         <canvas id="layer-interact" class="w-100 h-100 p-0 floating-0 z-1"></canvas>
                         <div id="legend" class="legend w-auto mh-50 mw-25 p-2 border rounded floating-10 bg-color-primary z-2"></div>
 
-                        <!-- The tooltip is positioned with javascript -->
+                        <!-- Tooltip (positioned with javascript) -->
                         <div id="tooltip" class="w-auto h-auto p-2 border rounded floating-undefined bg-color-primary z-2">
                             <p id="tooltip-value" class="p-0 m-0"></p>
                             <p id="tooltip-timestamp" class="p-0 m-0"></p>
+                        </div>
+
+                        <!-- Comment Form (positioned with javascript) -->
+                        <div id="comment-form" class="w-auto h-auto p-2 border rounded floating-undefined bg-color-primary z-2 form-group">
+                            <label for="comment-date" class="form-label">New Comment</label>
+                            <div class="input-group input-group-sm mb-3">
+                                <input id="comment-date" type="text" class="form-control date-input" placeholder="2025-04-30T12:00:00Z">
+                            </div>
+                            <div class="input-group input-group-sm mb-3">
+                                <input id="comment-text" type="text" class="form-control" placeholder="your text here...">
+                            </div>
+                            <div class="input-group input-group-sm">
+                                <button id="comment-button-cancel" class="w-50 btn btn-outline-secondary">Cancel</button>
+                                <button id="comment-button-submit" class="w-50 btn btn-outline-light">Submit</button>
+                            </div>
                         </div>
                     </div>
                 </div>

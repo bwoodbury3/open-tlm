@@ -5,8 +5,10 @@ import pathlib
 from flask import Flask, render_template, request, send_from_directory
 
 from src.index import Index
+from src.marks import Marks
 from src.metrics import loop
 from src.model.data import Datapoint, TimeSeriesDataset
+from src.model.comment import Comment
 
 
 DEFAULT_STORE = pathlib.Path(__file__).parent / "data"
@@ -39,6 +41,7 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 # Init backing index
 _index = Index(args.store)
+_marks = Marks(args.store)
 
 
 @app.route("/")
@@ -98,6 +101,48 @@ def post_data():
         count += len(points)
 
     return {"message": f"{count} datapoints were posted"}, 200
+
+
+@app.route("/api/comment/new", methods=["POST"])
+def post_comment():
+    body = request.get_json()
+    try:
+        data = body["comment"]
+    except Exception as e:
+        print(e)
+        return {"message": "Missing required 'comment' key"}, 400
+
+    comment = Comment(**data)
+    try:
+        _marks.create(comment)
+    except Exception as e:
+        print(e)
+        return {"message": str(e)}, 400
+
+    return {"message": "Comment created", "id": comment.id}, 200
+
+
+@app.route("/api/comment", methods=["GET"])
+def get_comments():
+    try:
+        start_dt = datetime.fromisoformat(request.args.get("start"))
+        end_dt = datetime.fromisoformat(request.args.get("end"))
+    except Exception as e:
+        return {"message": f"Invalid or missing start/end times {e}"}, 400
+
+    tag_str = request.args.get("tags", None)
+    if tag_str is None:
+        tag_filter = []
+    else:
+        tag_filter = tag_str.split(",")
+
+    try:
+        comments = _marks.get(start_dt, end_dt, tag_filter)
+    except Exception as e:
+        print(e)
+        return {"message": str(e)}, 400
+
+    return {"comments": comments}, 200
 
 
 if __name__ == "__main__":

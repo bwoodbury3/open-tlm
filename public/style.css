@@ -49,7 +49,7 @@ html, body {
 }
 
 .date-input {
-    width: 14em;
+    width: 14em !important;
     text-align: center;
 }
 

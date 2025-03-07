@@ -1,5 +1,6 @@
 import { XAxis, YAxis } from "/public/axes.js";
 import { ColorPicker } from "/public/color.js";
+import { CommentCreateController, get_comments } from "/public/comment.js";
 import { TaskQueue } from "/public/tasks.js";
 
 const DATA_ENDPOINT = "/api/data";
@@ -69,7 +70,7 @@ export class Graph {
         this.legend.style.visibility = "hidden";
 
         /*
-         * Initialize the zoom tool.
+         * Initialize mouse listeners.
          */
         this.drag_state = new DragState();
         this.interact_layer.addEventListener("mousedown", event => this._mouse_down(event));
@@ -112,6 +113,14 @@ export class Graph {
         this.tooltip_div.style.visibility = "hidden";
         this.tooltip_value = document.getElementById("tooltip-value");
         this.tooltip_timestamp = document.getElementById("tooltip-timestamp");
+
+        /*
+         * Initialize the comment UI.
+         */
+        this.comment_create_controller = new CommentCreateController();
+        this.comment_create_controller.on_submit = () => this._refresh_comments();
+        this._refresh_comments();
+        this.comments = [];
 
         addEventListener("resize", event => this.resize());
 
@@ -167,12 +176,21 @@ export class Graph {
      */
     async _refresh() {
         this.refresh_task_queue.enqueue(async () => {
+            this.comments = await get_comments(this.start, this.end);
             for (const axis_index in this.y_axes) {
                 for (const dataset_id in this.y_axes[axis_index].datasets) {
                     await this._fetch(dataset_id, axis_index);
                 }
             }
         })
+    }
+
+    /**
+     * Refresh only the comment data.
+     */
+    async _refresh_comments() {
+        this.comments = await get_comments(this.start, this.end);
+        this._graph_layer();
     }
 
     /**
@@ -280,6 +298,11 @@ export class Graph {
         }
 
         /*
+         * Draw the comments.
+         */
+        this._comments();
+
+        /*
          * Redraw the legend.
          */
         this._legend();
@@ -357,7 +380,6 @@ export class Graph {
                     } else {
                         const text_width = this.graph_ctx.measureText(formatted).width;
                         const x_pos = width - text_width - margin_px;
-                        console.log(this.graph_ctx.measureText(formatted));
                         this.graph_ctx.fillText(formatted, x_pos, y_px + (font_px / 2));
                     }
                 }
@@ -438,7 +460,7 @@ export class Graph {
             /*
              * If we're dragging in zoom mode, gray out the area outside the zoom range.
              */
-            if (this.drag_state.in_progress && this.drag_state.should_zoom(this.settings.min_zoom_threshold)) {
+            if (this.drag_state.in_progress && this.drag_state.did_move(this.settings.min_zoom_threshold)) {
                 this.interact_ctx.fillStyle = 'rgba(225,225,225,0.1)';
 
                 if (this.drag_state.axis === "x") {
@@ -618,10 +640,22 @@ export class Graph {
         this.drag_state.mouse_up(event.offsetX, event.offsetY);
         this._interact_layer();
 
-        if (this.settings.mouse_mode == MouseMode.ZOOM) {
-            this._zoom_end();
-        } else if (this.settings.mouse_mode == MouseMode.PAN) {
-            this._pan_move(event, true);
+        /*
+         * Short click handler.
+         */
+        if (!this.drag_state.did_move(0)) {
+            this._spawn_comment_form(event);
+        }
+
+        /*
+         * Click and drag handlers.
+         */
+        else {
+            if (this.settings.mouse_mode == MouseMode.ZOOM) {
+                this._zoom_end();
+            } else if (this.settings.mouse_mode == MouseMode.PAN) {
+                this._pan_move(event, true);
+            }
         }
     }
 
@@ -639,7 +673,7 @@ export class Graph {
      * Handle the end of a zoom event.
      */
     _zoom_end() {
-        if (!this.drag_state.should_zoom(this.settings.min_zoom_threshold)) {
+        if (!this.drag_state.did_move(this.settings.min_zoom_threshold)) {
             return;
         }
 
@@ -877,6 +911,72 @@ export class Graph {
          */
         this._graph_layer();
     }
+
+    /**
+     * Initialize creating a new comment This spawns a form where the user can
+     * enter in their custom content.
+     *
+     * @param {*} event
+     */
+    _spawn_comment_form(event) {
+        const mouse_x = event.offsetX;
+        const y_pos = this.interact_layer.height - 50;
+        const comment_time = this.start + mouse_x / this.x_axis.scale;
+        this.comment_create_controller.start_create(comment_time, mouse_x, y_pos);
+    }
+
+    /**
+     * Redraw the comments.
+     */
+    _comments() {
+        const height = this.graph_layer.height;
+        const font_px = 15;
+        const y_margin = 5;
+        const max_y = height - 50;
+        var cur_y = max_y;
+        var prev_x = -1;
+
+        /*
+         * Draw the comments.
+         */
+        this.graph_ctx.font = `${font_px}px Arial`;
+        this.graph_ctx.strokeStyle = '#CCFFFF';
+        this.graph_ctx.fillStyle = '#CCFFFF';
+        for (const comment of this.comments) {
+            const date = new Date(comment.date).getTime();
+            const x_pos = (date - this.start) * this.x_axis.scale;
+
+            /*
+             * Draw the vertical bar.
+             */
+            this.graph_ctx.beginPath();
+            this.graph_ctx.moveTo(x_pos, 0);
+            this.graph_ctx.lineTo(x_pos, height);
+            this.graph_ctx.stroke();
+
+            /*
+             * Draw the note text.
+             */
+            const measured = this.graph_ctx.measureText(comment.text);
+            const text_width = measured.width;
+            if (x_pos < prev_x) {
+                cur_y -= font_px + y_margin;
+            } else {
+                cur_y = max_y;
+            }
+            this.graph_ctx.fillText(comment.text, x_pos, cur_y);
+            prev_x = x_pos + text_width;
+        }
+
+        /*
+         * Draw the comment creation form.
+         */
+        if (this.comment_create_controller.active) {
+            const x_pos = (this.comment_create_controller.time - this.start) * this.x_axis.scale;
+            const y_pos = height - 50;
+            this.comment_create_controller.move(x_pos, y_pos);
+        }
+    }
 }
 
 /**
@@ -932,7 +1032,7 @@ class DragState {
         this.in_progress = false;
     }
 
-    should_zoom(threshold) {
+    did_move(threshold) {
         if (this.axis == "x") {
             return Math.abs(this.x1 - this.x0) > threshold;
         }
