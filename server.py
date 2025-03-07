@@ -122,6 +122,25 @@ def post_comment():
     return {"message": "Comment created", "id": comment.id}, 200
 
 
+@app.route("/api/comment/edit", methods=["PUT"])
+def edit_comment():
+    body = request.get_json()
+    try:
+        data = body["comment"]
+    except Exception as e:
+        print(e)
+        return {"message": "Missing required 'comment' key"}, 400
+
+    comment = Comment(**data)
+    try:
+        _marks.update(comment)
+    except Exception as e:
+        print(e)
+        return {"message": str(e)}, 400
+
+    return {"message": "Comment edited", "id": comment.id}, 200
+
+
 @app.route("/api/comment", methods=["GET"])
 def get_comments():
     try:
@@ -138,6 +157,17 @@ def get_comments():
 
     try:
         comments = _marks.get(start_dt, end_dt, tag_filter)
+    except Exception as e:
+        print(e)
+        return {"message": str(e)}, 400
+
+    return {"comments": comments}, 200
+
+
+@app.route("/api/comment/delete/<comment_id>", methods=["DELETE"])
+def delete_comment(comment_id: int):
+    try:
+        comments = _marks.delete(int(comment_id))
     except Exception as e:
         print(e)
         return {"message": str(e)}, 400

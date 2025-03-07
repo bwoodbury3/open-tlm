@@ -109,15 +109,37 @@ class Marks:
             raise ValueError("Fields may not contain semicolons")
 
         comments = [n for n in self._get_all_comments(self.comments_path)]
-        for i, n in enumerate(comments):
-            if n.id == comment.id:
+        i = 0
+        for n in comments:
+            if n.id > comment.id:
                 break
+            i += 1
         if i >= len(comments):
             raise ValueError("No comment found with that ID")
         comments[i] = comment
         self._write_comments(self.comments_path, comments)
 
         return comment
+
+    def delete(self, comment_id: int):
+        """
+        Update the provided comment.
+
+        Args:
+            comment: The comment to update.
+
+        Returns The comment that was created.
+        """
+        comments = [n for n in self._get_all_comments(self.comments_path)]
+        i = 0
+        for n in comments:
+            if n.id == comment_id:
+                break
+            i += 1
+        if i >= len(comments):
+            raise ValueError("No comment found with that ID")
+        del comments[i]
+        self._write_comments(self.comments_path, comments)
 
     def _get_all_comments(self, path: pathlib.Path) -> Generator[Comment, None, None]:
         """

@@ -77,6 +77,7 @@ export class Graph {
         this.interact_layer.addEventListener("mouseup", event => this._mouse_up(event));
         this.interact_layer.addEventListener("mouseleave", event => this._mouse_leave());
         this.interact_layer.addEventListener("mousemove", event => this._mouse_move(event));
+        this.interact_layer.addEventListener("mousemove", event => this._mouse_hover(event));
         this.interact_layer.addEventListener("wheel", event => this._zoom_mousewheel(event));
 
         /*
@@ -108,7 +109,6 @@ export class Graph {
         /*
          * Initialize the tooltip.
          */
-        this.interact_layer.addEventListener("mousemove", event => this._maybe_tooltip(event));
         this.tooltip_div = document.getElementById("tooltip");
         this.tooltip_div.style.visibility = "hidden";
         this.tooltip_value = document.getElementById("tooltip-value");
@@ -118,9 +118,10 @@ export class Graph {
          * Initialize the comment UI.
          */
         this.comment_create_controller = new CommentCreateController();
-        this.comment_create_controller.on_submit = () => this._refresh_comments();
+        this.comment_create_controller.on_change = () => this._refresh_comments();
         this._refresh_comments();
         this.comments = [];
+        this.comment_hitboxes = [];
 
         addEventListener("resize", event => this.resize());
 
@@ -525,23 +526,54 @@ export class Graph {
     }
 
     /**
-     * Render a tooltip if the mouse is hovering above a point.
+     * Generic mouse hover event handler.
      *
-     * @param {*} event
+     * @param {*} event The event.
      */
-    _maybe_tooltip(event) {
+    _mouse_hover(event) {
         /*
-         * Refuse to render the tooltip if we're dragging/zooming something.
+         * Refuse to render any tooltips if we're dragging/zooming something.
          */
         if (this.drag_state.in_progress) {
             return;
         }
-
-        const point_width = this.settings.point_width;
         const mouse_x = event.offsetX;
         const mouse_y = event.offsetY;
 
-        let active = false;
+        if (this._comment_collision(mouse_x, mouse_y) >= 0) {
+            document.body.style.cursor = "pointer";
+        } else {
+            document.body.style.cursor = "auto";
+            this._maybe_tooltip(mouse_x, mouse_y);
+        }
+    }
+
+    /**
+     * Return which comment index the mouse is colliding with, or -1.
+     *
+     * @param {Number} mouse_x The mouse X coordinate.
+     * @param {Number} mouse_y The mouse Y coordinate.
+     */
+    _comment_collision(mouse_x, mouse_y) {
+        for (const hitbox of this.comment_hitboxes) {
+            if (mouse_x >= hitbox.x &&
+                mouse_x <= hitbox.x + hitbox.width &&
+                mouse_y >= hitbox.y &&
+                mouse_y <= hitbox.y + hitbox.height) {
+                return hitbox.id;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Render a tooltip if the mouse is hovering above a point.
+     *
+     * @param {Number} mouse_x The mouse X coordinate.
+     * @param {Number} mouse_y The mouse Y coordinate.
+     */
+    _maybe_tooltip(mouse_x, mouse_y) {
+        const point_width = this.settings.point_width;
         let pixelpoint = undefined;
         let datapoint = undefined;
         let dataset = undefined;
@@ -556,7 +588,6 @@ export class Graph {
                     const point = points[i];
                     if (Math.abs(mouse_x - point[0]) <= point_width &&
                             Math.abs(mouse_y - point[1]) <= point_width) {
-                        active = true;
                         pixelpoint = point;
                         datapoint = y_axis.datasets[dataset_id].points[i];
                         dataset = dataset_id;
@@ -564,7 +595,7 @@ export class Graph {
                     }
                 }
 
-                if (active) {
+                if (pixelpoint !== undefined) {
                     break;
                 }
             }
@@ -573,7 +604,7 @@ export class Graph {
         /*
          * Possibly render the tooltip.
          */
-        if (active) {
+        if (pixelpoint !== undefined) {
             this.tooltip_value.innerHTML =
                 `<code>${dataset}</code>: <code>${this._get_value(datapoint)}</code>`;
             this.tooltip_timestamp.innerText = new Date(datapoint.date).toISOString();
@@ -920,9 +951,28 @@ export class Graph {
      */
     _spawn_comment_form(event) {
         const mouse_x = event.offsetX;
+        const mouse_y = event.offsetY;
+
+        /*
+         * Clicking away from the form when it's active should disable it.
+         */
+        if (this.comment_create_controller.active) {
+            this.comment_create_controller.cancel();
+            return;
+        }
+
+        /*
+         * Otherwise, spawn a create/edit form.
+         */
         const y_pos = this.interact_layer.height - 50;
-        const comment_time = this.start + mouse_x / this.x_axis.scale;
-        this.comment_create_controller.start_create(comment_time, mouse_x, y_pos);
+        const comment_index = this._comment_collision(mouse_x, mouse_y)
+        if (comment_index === -1) {
+            const comment_time = this.start + mouse_x / this.x_axis.scale;
+            this.comment_create_controller.start_create(comment_time, mouse_x, y_pos);
+        } else {
+            const comment = this.comments[comment_index];
+            this.comment_create_controller.start_edit(comment, mouse_x, y_pos);
+        }
     }
 
     /**
@@ -932,7 +982,9 @@ export class Graph {
         const height = this.graph_layer.height;
         const font_px = 15;
         const y_margin = 5;
-        const max_y = height - 50;
+        const max_y = height - 40;
+
+        this.comment_hitboxes = [];
         var cur_y = max_y;
         var prev_x = -1;
 
@@ -942,7 +994,8 @@ export class Graph {
         this.graph_ctx.font = `${font_px}px Arial`;
         this.graph_ctx.strokeStyle = '#CCFFFF';
         this.graph_ctx.fillStyle = '#CCFFFF';
-        for (const comment of this.comments) {
+        for (const comment_id in this.comments) {
+            const comment = this.comments[comment_id];
             const date = new Date(comment.date).getTime();
             const x_pos = (date - this.start) * this.x_axis.scale;
 
@@ -958,14 +1011,32 @@ export class Graph {
              * Draw the note text.
              */
             const measured = this.graph_ctx.measureText(comment.text);
-            const text_width = measured.width;
             if (x_pos < prev_x) {
                 cur_y -= font_px + y_margin;
             } else {
                 cur_y = max_y;
             }
             this.graph_ctx.fillText(comment.text, x_pos, cur_y);
-            prev_x = x_pos + text_width;
+
+            /*
+             * Add hitboxes for the text and the line.
+             */
+            this.comment_hitboxes.push({
+                id: comment_id,
+                x: x_pos,
+                y: cur_y - font_px,
+                width: measured.width,
+                height: font_px
+            });
+            this.comment_hitboxes.push({
+                id: comment_id,
+                x: x_pos - 1,
+                y: 0,
+                width: 2,
+                height: height
+            });
+
+            prev_x = x_pos + measured.width;
         }
 
         /*

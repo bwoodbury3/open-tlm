@@ -29,20 +29,26 @@ export class CommentCreateController {
     constructor() {
         this.active = false;
         this.time = undefined;
+        this.mode = undefined;
+        this.comment_id = undefined;
         this.comment_form = document.getElementById("comment-form");
+        this.comment_label = document.getElementById("comment-label");
         this.comment_date = document.getElementById("comment-date");
         this.comment_text = document.getElementById("comment-text");
-        this.cancel_button = document.getElementById("comment-button-cancel");
+        this.delete_button = document.getElementById("comment-button-delete");
         this.submit_button = document.getElementById("comment-button-submit");
         this.comment_form.style.visibility = "hidden";
 
         /*
          * Register handlers.
          */
-        this.cancel_button.onclick = (event) => this.cancel();
+        this.delete_button.onclick = (event) => this.delete();
         this.submit_button.onclick = (event) => this.submit();
 
-        this.on_submit = () => {};
+        /*
+         * Callback for if any comment data is changed on the frontend.
+         */
+        this.on_change = () => {};
     }
 
     /**
@@ -56,15 +62,43 @@ export class CommentCreateController {
     start_create(time, x_pos, y_pos) {
         this.active = true;
         this.time = time;
+        this.mode = "create";
+        this.comment_id = -1;
 
         const y_pos_adj = y_pos - this.comment_form.offsetHeight;
 
+        this.comment_label.innerText = "New Comment";
         this.comment_form.style.visibility = "visible";
         this.comment_form.style.left = `${x_pos}px`;
         this.comment_form.style.top = `${y_pos_adj}px`;
         this.comment_form.classList.remove("border-warning");
 
         this.comment_date.value = new Date(this.time).toISOString();
+    }
+
+    /**
+     * Edit an existing comment.
+     *
+     * @param {Object} comment The existing comment.
+     * @param {Number} x_pos The x position at which to render the form.
+     * @param {Number} y_pos The y position at which to render the form.
+     */
+    start_edit(comment, x_pos, y_pos) {
+        this.active = true;
+        this.time = new Date(comment.date).getTime();
+        this.mode = "edit";
+        this.comment_id = comment.id;
+
+        const y_pos_adj = y_pos - this.comment_form.offsetHeight;
+
+        this.comment_label.innerText = "Edit Comment";
+        this.comment_form.style.visibility = "visible";
+        this.comment_form.style.left = `${x_pos}px`;
+        this.comment_form.style.top = `${y_pos_adj}px`;
+        this.comment_form.classList.remove("border-warning");
+
+        this.comment_date.value = comment.date;
+        this.comment_text.value = comment.text;
     }
 
     /**
@@ -86,13 +120,34 @@ export class CommentCreateController {
      * Submit handler.
      */
     async submit() {
-        const success = await this._post(this.comment_date.value, this.comment_text.value, []);
+        let success = false;
+        if (this.mode === "create") {
+            success = await this._post(this.comment_date.value, this.comment_text.value, []);
+        } else if (this.mode === "edit") {
+            success = await this._put(this.comment_date.value, this.comment_text.value, []);
+        }
         if (success) {
             this.cancel();
-            this.on_submit();
+            this.on_change();
         } else {
             this.comment_form.classList.add("border-warning");
         }
+    }
+
+    /**
+     * Delete handler.
+     */
+    async delete() {
+        if (this.mode === "create") {
+            this.cancel();
+            return;
+        }
+
+        const success = await this._delete();
+        if (success) {
+            this.on_change();
+        }
+        this.cancel();
     }
 
     /**
@@ -118,7 +173,7 @@ export class CommentCreateController {
         const url = `${COMMENT_ENDPOINT}/new`
         const body = {
             comment: {
-                id: 0,
+                id: this.comment_id,
                 date: date,
                 text: text,
                 tags: tags,
@@ -131,7 +186,39 @@ export class CommentCreateController {
             },
             body: JSON.stringify(body),
         });
-        console.log(response);
+        return response.ok;
+    }
+
+    /**
+     * Put a Comment to the API.
+     *
+     * @param {string} date The date
+     * @param {string} text The text of the comment
+     * @param {Array<string>} tags The list of tags
+     */
+    async _put(date, text, tags) {
+        const url = `${COMMENT_ENDPOINT}/edit`
+        const body = {
+            comment: {
+                id: this.comment_id,
+                date: date,
+                text: text,
+                tags: tags,
+            }
+        }
+        const response = await fetch(url, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+        });
+        return response.ok;
+    }
+
+    async _delete() {
+        const url = `${COMMENT_ENDPOINT}/delete/${this.comment_id}`
+        const response = await fetch(url, {method: "DELETE"});
         return response.ok;
     }
 }
