@@ -111,7 +111,7 @@ class Marks:
         comments = [n for n in self._get_all_comments(self.comments_path)]
         i = 0
         for n in comments:
-            if n.id > comment.id:
+            if n.id == comment.id:
                 break
             i += 1
         if i >= len(comments):

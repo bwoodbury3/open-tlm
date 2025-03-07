@@ -12,8 +12,6 @@ const DATA_ENDPOINT = "/api/data";
  *      - Remember settings in cookies
  *
  * System features
- *      - X axis inline notes.
- *          - Maybe adding a note on a telemetry point?
  *      - Sharelinks?
  */
 
@@ -41,6 +39,7 @@ export class Graph {
             grid_axis: 0,
             show_points: true,
             point_width: 4,
+            show_comments: true,
             min_zoom_threshold: 20,
         };
 
@@ -91,6 +90,8 @@ export class Graph {
         this.toolbar_point_toggle.onclick = event => this._toggle_points(event);
         this.toolbar_grid_toggle = document.getElementById("graph-grid-toggle");
         this.toolbar_grid_toggle.onclick = event => this._toggle_grid(event);
+        this.toolbar_comment_toggle = document.getElementById("graph-comment-toggle");
+        this.toolbar_comment_toggle.onclick = event => this._toggle_comments(event);
         this.toolbar_mouse_zoom = document.getElementById("graph-mouse-zoom");
         this.toolbar_mouse_zoom.onclick = event => this._set_mouse_mode(MouseMode.ZOOM);
         this.toolbar_mouse_pan = document.getElementById("graph-mouse-pan");
@@ -503,6 +504,12 @@ export class Graph {
             this.toolbar_grid_toggle.classList.remove("btn-enabled");
         }
 
+        if (this.settings.show_comments) {
+            this.toolbar_comment_toggle.classList.add("btn-enabled");
+        } else {
+            this.toolbar_comment_toggle.classList.remove("btn-enabled");
+        }
+
         if (this.settings.mouse_mode == MouseMode.ZOOM) {
             this.toolbar_mouse_zoom.classList.add("btn-enabled");
             this.toolbar_mouse_pan.classList.remove("btn-enabled");
@@ -880,6 +887,15 @@ export class Graph {
     }
 
     /**
+     * Toggle the show_grid config.
+     */
+    _toggle_comments() {
+        this.settings.show_comments = !this.settings.show_comments;
+        this._toolbar();
+        this._graph_layer();
+    }
+
+    /**
      * Toggle the mouse mode to zoom.
      */
     _set_mouse_mode(mouse_mode) {
@@ -979,6 +995,10 @@ export class Graph {
      * Redraw the comments.
      */
     _comments() {
+        if (!this.settings.show_comments) {
+            return;
+        }
+
         const height = this.graph_layer.height;
         const font_px = 15;
         const y_margin = 5;
