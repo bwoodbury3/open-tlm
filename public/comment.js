@@ -80,8 +80,8 @@ export class CommentCreateController {
      * Edit an existing comment.
      *
      * @param {Object} comment The existing comment.
-     * @param {Number} x_pos The x position at which to render the form.
-     * @param {Number} y_pos The y position at which to render the form.
+     * @param {Number} x_pos The x pixel to place the form (from left).
+     * @param {Number} y_pos The y pixel to place the form (from top).
      */
     start_edit(comment, x_pos, y_pos) {
         this.active = true;
@@ -165,9 +165,11 @@ export class CommentCreateController {
     /**
      * Post a Comment to the API.
      *
-     * @param {string} date The date
-     * @param {string} text The text of the comment
-     * @param {Array<string>} tags The list of tags
+     * @param {string} date The date.
+     * @param {string} text The text of the comment.
+     * @param {Array<string>} tags The list of tags.
+     *
+     * @returns True on success.
      */
     async _post(date, text, tags) {
         const url = `${COMMENT_ENDPOINT}/new`
@@ -192,9 +194,11 @@ export class CommentCreateController {
     /**
      * Put a Comment to the API.
      *
-     * @param {string} date The date
-     * @param {string} text The text of the comment
-     * @param {Array<string>} tags The list of tags
+     * @param {string} date The date.
+     * @param {string} text The text of the comment.
+     * @param {Array<string>} tags The list of tags.
+     *
+     * @returns True on success.
      */
     async _put(date, text, tags) {
         const url = `${COMMENT_ENDPOINT}/edit`
@@ -216,6 +220,11 @@ export class CommentCreateController {
         return response.ok;
     }
 
+    /**
+     * Delete a Comment.
+     *
+     * @returns True on success.
+     */
     async _delete() {
         const url = `${COMMENT_ENDPOINT}/delete/${this.comment_id}`
         const response = await fetch(url, {method: "DELETE"});

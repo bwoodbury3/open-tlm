@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import itertools
 import pathlib
+import regex
 from typing import Generator
 
 from src.model.data import AggregatedDatapoint, Datapoint
@@ -54,6 +55,9 @@ MAX_DURATION_100 = MAX_DURATION_1 * 100
 MAX_DURATION_1000 = MAX_DURATION_1 * 1000
 MAX_DURATION_10000 = MAX_DURATION_1 * 10000
 MAX_DURATION_100000 = MAX_DURATION_1 * 100000
+
+# Legal values for a dataset_id.
+LEGAL_DATASET_CHARS = regex.compile(r"[a-zA-Z0-9\._\-]+")
 
 
 @dataclass
@@ -105,8 +109,10 @@ class Index:
         """
         self.num_puts += 1
 
-        if "/" in dataset_id or dataset_id == "..":
-            raise ValueError("Illegal dataset ID")
+        if not LEGAL_DATASET_CHARS.fullmatch(dataset_id) or ".." in dataset_id:
+            raise ValueError(
+                f'Illegal dataset ID. Must match "{LEGAL_DATASET_CHARS}" and not include ".."'
+            )
 
         # Sort all of the datapoints by UTC timestamp. This makes aggregation/binning cheap.
         _points = [

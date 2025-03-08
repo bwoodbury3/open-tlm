@@ -9,12 +9,54 @@ var search_bar = null;
 
 window.addEventListener('load', function () {
     /*
+     * Load the URL parameters.
+     */
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    var start_param = urlParams.get("start");
+    var end_param = urlParams.get("end");
+    var axis0_datasets_param = urlParams.get("axis0");
+    var axis1_datasets_param = urlParams.get("axis1");
+
+     // Default to the last 24 hrs
+    let date_start = new Date(new Date().getTime() - MS_PER_DAY);
+    let date_end = new Date();
+    if (start_param != null && end_param != null) {
+        try {
+            const date_start_param = new Date(start_param);
+            const date_end_param = new Date(end_param);
+            if (date_start_param.getTime() < date_end_param.getTime()) {
+                date_start = date_start_param;
+                date_end = date_end_param;
+            } else {
+                alert("Invalid sharelink! start > end");
+            }
+        } catch (error) {
+            console.error("Invalid sharelink:", error.message);
+        }
+    }
+
+    var axis0_datasets = [];
+    var axis1_datasets = [];
+    if (axis0_datasets_param != null && axis0_datasets_param !== "") {
+        try {
+            axis0_datasets = axis0_datasets_param.split(",")
+        } catch (error) {
+            console.error("Invalid sharelink:", error.message);
+        }
+    }
+    if (axis1_datasets_param != null && axis1_datasets_param !== "") {
+        try {
+            axis1_datasets = axis1_datasets_param.split(",")
+        } catch (error) {
+            console.error("Invalid sharelink:", error.message);
+        }
+    }
+
+    /*
      * Create the Graph controller
      */
-    const date_start = new Date();
-    const date_end = new Date();
-    date_start.setTime(date_start.getTime() - MS_PER_DAY); // Default to the last 24 hrs
-    graph = new Graph(date_start, date_end, []);
+    graph = new Graph(date_start, date_end, axis0_datasets, axis1_datasets);
 
     /*
      * Create the SearchBar controller.

@@ -24,15 +24,10 @@ export class Graph {
      *
      * @param {Date} start The initial start time range.
      * @param {Date} end The initial end time range.
-     * @param {Array<String>} dataset_ids The dataset IDs.
+     * @param {Array<String>} axis0_datasets The axis1 dataset IDs.
+     * @param {Array<String>} axis1_datasets The axis2 dataset IDs.
      */
-    constructor(start, end, dataset_ids) {
-        this.start = start.getTime();
-        this.end = end.getTime();
-        this.x_axis = new XAxis();
-        this.y_axes = [new YAxis(), new YAxis()];
-        this.colors = {};
-
+    constructor(start, end, axis0_datasets, axis1_datasets) {
         this.settings = {
             mouse_mode: MouseMode.ZOOM,
             show_grid: true,
@@ -43,6 +38,11 @@ export class Graph {
             min_zoom_threshold: 20,
         };
 
+        this.start = start.getTime();
+        this.end = end.getTime();
+        this.x_axis = new XAxis();
+        this.y_axes = [new YAxis(), new YAxis()];
+        this.colors = {};
         this.color_picker = new ColorPicker();
         this.refresh_task_queue = new TaskQueue(1, 1);
 
@@ -82,6 +82,8 @@ export class Graph {
         /*
          * Initialize the toolbar.
          */
+        this.toolbar_sharelink = document.getElementById("graph-sharelink");
+        this.toolbar_sharelink.onclick = event => this._sharelink();
         this.toolbar_zoom_in = document.getElementById("graph-zoom-in");
         this.toolbar_zoom_in.onclick = event => this._zoom_in_button(event);
         this.toolbar_zoom_out = document.getElementById("graph-zoom-out");
@@ -129,14 +131,25 @@ export class Graph {
         this._toolbar();
         this._refresh();
         this._graph_layer();
+
+        /*
+         * Add the initial datasets.
+         */
+        for (const dataset_id of axis0_datasets) {
+            this.add_dataset(dataset_id, 0);
+        }
+        for (const dataset_id of axis1_datasets) {
+            this.add_dataset(dataset_id, 1);
+        }
     }
 
     /**
      * Add a new dataset ID to the graph.
      *
      * @param {String} dataset_id The dataset ID.
+     * @param {Number} axis The axis.
      */
-    add_dataset(dataset_id) {
+    add_dataset(dataset_id, axis=0) {
         for (const y_axis of this.y_axes) {
             if (y_axis.has(dataset_id)) {
                 return;
@@ -144,7 +157,7 @@ export class Graph {
         }
 
         this._graph_layer();
-        this._fetch(dataset_id, 0);
+        this._fetch(dataset_id, axis);
     }
 
     /**
@@ -218,8 +231,8 @@ export class Graph {
         this._graph_layer();
     }
 
-    /*
-     * Plot all of the datasets on the canvas.
+    /**
+     * Redraw the entire graph canvas.
      */
     _graph_layer() {
         /*
@@ -761,6 +774,21 @@ export class Graph {
         const zoom_factor = event.deltaY > 0 ? 0.2 : -0.2;
         const mouse_x = event.offsetX;
         this._zoom_once_x(zoom_factor, mouse_x);
+    }
+
+    /**
+     * Handle the sharelink button.
+     */
+    _sharelink() {
+        const base_url = window.location.origin;
+        const params = new URLSearchParams({
+            start: new Date(this.start).toISOString(),
+            end: new Date(this.end).toISOString(),
+            axis0: Object.keys(this.y_axes[0].datasets).join(","),
+            axis1: Object.keys(this.y_axes[1].datasets).join(","),
+        });
+        const endpoint = `${base_url}?${params}`;
+        navigator.clipboard.writeText(endpoint);
     }
 
     /**
