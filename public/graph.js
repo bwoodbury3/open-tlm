@@ -10,9 +10,6 @@ const DATA_ENDPOINT = "/api/data";
  *
  * UX improvements
  *      - Remember settings in cookies
- *
- * System features
- *      - Sharelinks?
  */
 
 /**
@@ -122,6 +119,7 @@ export class Graph {
          */
         this.comment_create_controller = new CommentCreateController();
         this.comment_create_controller.on_change = () => this._refresh_comments();
+        this.comment_create_controller.on_cancel = () => this._interact_layer();
         this._refresh_comments();
         this.comments = [];
         this.comment_hitboxes = [];
@@ -206,6 +204,7 @@ export class Graph {
     async _refresh_comments() {
         this.comments = await get_comments(this.start, this.end);
         this._graph_layer();
+        this._interact_layer();
     }
 
     /**
@@ -498,6 +497,14 @@ export class Graph {
                 this.interact_ctx.fillStyle = 'rgba(225,225,225,0.05)';
                 this.interact_ctx.fillRect(0, 0, width, height);
             }
+        }
+
+        this.interact_ctx.strokeStyle = "#AAFFAA";
+        if (this.comment_create_controller.active) {
+            this.interact_ctx.beginPath();
+            this.interact_ctx.moveTo(this.comment_create_controller.x, 0);
+            this.interact_ctx.lineTo(this.comment_create_controller.x, height);
+            this.interact_ctx.stroke();
         }
     }
 
@@ -1002,6 +1009,7 @@ export class Graph {
          */
         if (this.comment_create_controller.active) {
             this.comment_create_controller.cancel();
+            this._interact_layer();
             return;
         }
 
@@ -1015,8 +1023,12 @@ export class Graph {
             this.comment_create_controller.start_create(comment_time, mouse_x, y_pos);
         } else {
             const comment = this.comments[comment_index];
-            this.comment_create_controller.start_edit(comment, mouse_x, y_pos);
+            const comment_time = new Date(comment.date).getTime();
+            const comment_x = (comment_time - this.start) * this.x_axis.scale;
+            this.comment_create_controller.start_edit(comment, comment_x, y_pos);
         }
+
+        this._interact_layer();
     }
 
     /**

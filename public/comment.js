@@ -30,6 +30,7 @@ export class CommentCreateController {
         this.active = false;
         this.time = undefined;
         this.mode = undefined;
+        this.x = -1;
         this.comment_id = undefined;
         this.comment_form = document.getElementById("comment-form");
         this.comment_label = document.getElementById("comment-label");
@@ -49,6 +50,7 @@ export class CommentCreateController {
          * Callback for if any comment data is changed on the frontend.
          */
         this.on_change = () => {};
+        this.on_cancel = () => {};
     }
 
     /**
@@ -64,6 +66,7 @@ export class CommentCreateController {
         this.time = time;
         this.mode = "create";
         this.comment_id = -1;
+        this.x = x_pos;
 
         const y_pos_adj = y_pos - this.comment_form.offsetHeight;
 
@@ -88,6 +91,7 @@ export class CommentCreateController {
         this.time = new Date(comment.date).getTime();
         this.mode = "edit";
         this.comment_id = comment.id;
+        this.x = x_pos;
 
         const y_pos_adj = y_pos - this.comment_form.offsetHeight;
 
@@ -113,6 +117,7 @@ export class CommentCreateController {
             const y_pos_adj = y_pos - this.comment_form.offsetHeight;
             this.comment_form.style.left = `${x_pos}px`;
             this.comment_form.style.top = `${y_pos_adj}px`;
+            this.x = x_pos;
         }
     }
 
@@ -156,10 +161,12 @@ export class CommentCreateController {
     cancel() {
         this.active = false;
         this.time = undefined;
+        this.x = -1;
         this.comment_date.value = "";
         this.comment_text.value = "";
         this.comment_form.style.visibility = "hidden";
         this.comment_form.classList.remove("border-warning");
+        this.on_cancel();
     }
 
     /**
