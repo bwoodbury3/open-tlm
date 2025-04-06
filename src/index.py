@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import itertools
 import pathlib
-import regex
+import re
 from typing import Generator
 
 from src.model.data import AggregatedDatapoint, Datapoint
@@ -57,7 +57,7 @@ MAX_DURATION_10000 = MAX_DURATION_1 * 10000
 MAX_DURATION_100000 = MAX_DURATION_1 * 100000
 
 # Legal values for a dataset_id.
-LEGAL_DATASET_CHARS = regex.compile(r"[a-zA-Z0-9\._\-]+")
+LEGAL_DATASET_CHARS = re.compile(r"[a-zA-Z0-9\._\-]+")
 
 
 @dataclass

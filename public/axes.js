@@ -92,6 +92,17 @@ export class YAxis {
     }
 
     /**
+     * Get the data for a dataset_id.
+     *
+     * @param {String} dataset_id The dataset ID.
+     *
+     * @returns The data.
+     */
+    get(dataset_id) {
+        return this.datasets[dataset_id];
+    }
+
+    /**
      * @returns The number of datasets owned by this axis.
      */
     num_datasets() {

@@ -1,6 +1,7 @@
 import { XAxis, YAxis } from "/public/axes.js";
 import { ColorPicker } from "/public/color.js";
 import { CommentCreateController, get_comments } from "/public/comment.js";
+import { Histogram, HistogramDatasetEntry } from "/public/histogram.js";
 import { TaskQueue } from "/public/tasks.js";
 
 const DATA_ENDPOINT = "/api/data";
@@ -10,9 +11,6 @@ const DATA_ENDPOINT = "/api/data";
  *
  * UX improvements
  *      - Remember settings in cookies
- *
- * System features
- *      - Sharelinks?
  */
 
 /**
@@ -55,6 +53,11 @@ export class Graph {
         this.graph_ctx = this.graph_layer.getContext("2d");
 
         /*
+         * Initialize the histogram.
+         */
+        this.histogram = new Histogram("layer-histogram");
+
+        /*
          * Initialize the interactive layer.
          */
         this.interact_layer = document.getElementById("layer-interact");
@@ -65,7 +68,7 @@ export class Graph {
         /*
          * Initialize the legend.
          */
-        this.legend = document.getElementById("legend");
+        this.legend = document.getElementById("graph-legend");
         this.legend.style.visibility = "hidden";
 
         /*
@@ -122,6 +125,7 @@ export class Graph {
          */
         this.comment_create_controller = new CommentCreateController();
         this.comment_create_controller.on_change = () => this._refresh_comments();
+        this.comment_create_controller.on_cancel = () => this._interact_layer();
         this._refresh_comments();
         this.comments = [];
         this.comment_hitboxes = [];
@@ -206,6 +210,7 @@ export class Graph {
     async _refresh_comments() {
         this.comments = await get_comments(this.start, this.end);
         this._graph_layer();
+        this._interact_layer();
     }
 
     /**
@@ -434,7 +439,7 @@ export class Graph {
                             </span>
                         </td>
                         <td>
-                            <p id="legend-${dataset_id}"
+                            <p id="graph-legend-${dataset_id}"
                                 class="clickable mb-0"
                                 style="color: ${this.colors[dataset_id]}">
                                 ${dataset_id}
@@ -452,8 +457,11 @@ export class Graph {
          */
         for (const axis of this.y_axes) {
             for (const dataset_id in axis.datasets) {
-                const legend_item = document.getElementById(`legend-${dataset_id}`);
-                legend_item.onclick = () => this.remove_dataset(dataset_id);
+                const legend_item = document.getElementById(`graph-legend-${dataset_id}`);
+                legend_item.onclick = () => this._legend_click(dataset_id);
+                legend_item.onmouseenter = () => this._legend_enter(dataset_id);
+                legend_item.onmouseleave = () => this._legend_leave(dataset_id);
+
                 const axis_toggle = document.getElementById(`axis-toggle-${dataset_id}`);
                 axis_toggle.onclick = () => this._toggle_axis(dataset_id);
             }
@@ -498,6 +506,14 @@ export class Graph {
                 this.interact_ctx.fillStyle = 'rgba(225,225,225,0.05)';
                 this.interact_ctx.fillRect(0, 0, width, height);
             }
+        }
+
+        this.interact_ctx.strokeStyle = "#AAFFAA";
+        if (this.comment_create_controller.active) {
+            this.interact_ctx.beginPath();
+            this.interact_ctx.moveTo(this.comment_create_controller.x, 0);
+            this.interact_ctx.lineTo(this.comment_create_controller.x, height);
+            this.interact_ctx.stroke();
         }
     }
 
@@ -968,6 +984,58 @@ export class Graph {
     }
 
     /**
+     * Trigger handler for when a legend item is clicked.
+     *
+     * @param {String} dataset_id
+     */
+    _legend_click(dataset_id) {
+        this._legend_leave(dataset_id);
+
+        /*
+         * Delete the dataset.
+         */
+        this.remove_dataset(dataset_id);
+    }
+
+    /**
+     * Trigger handler for when a legend item is hovered over.
+     *
+     * @param {String} dataset_id
+     */
+    _legend_enter(dataset_id) {
+        if (dataset_id) {
+            /*
+             * Fetch the data for this dataset. Abort if we don't have it for
+             * some reason (maybe _fetch() hasn't returned yet).
+             */
+            let data = undefined;
+            for (const ax of this.y_axes) {
+                if (ax.has(dataset_id)) {
+                    data = ax.get(dataset_id);
+                    break;
+                }
+            }
+            if (data === undefined) {
+                return;
+            }
+
+            const color = this.color_picker.with_alpha(this.colors[dataset_id], 0.3);
+            console.log(color);
+            const entry = new HistogramDatasetEntry(dataset_id, data, color);
+            this.histogram.render_one(entry, this.start, this.end);
+        }
+    }
+
+    /**
+     * Mouse leave event handler for a legend item.
+     *
+     * @param {String} dataset_id
+     */
+    _legend_leave(dataset_id) {
+        this.histogram.clear();
+    }
+
+    /**
      * Toggle the axis for a dataset.
      *
      * @param {String} dataset_id
@@ -1002,6 +1070,7 @@ export class Graph {
          */
         if (this.comment_create_controller.active) {
             this.comment_create_controller.cancel();
+            this._interact_layer();
             return;
         }
 
@@ -1015,8 +1084,12 @@ export class Graph {
             this.comment_create_controller.start_create(comment_time, mouse_x, y_pos);
         } else {
             const comment = this.comments[comment_index];
-            this.comment_create_controller.start_edit(comment, mouse_x, y_pos);
+            const comment_time = new Date(comment.date).getTime();
+            const comment_x = (comment_time - this.start) * this.x_axis.scale;
+            this.comment_create_controller.start_edit(comment, comment_x, y_pos);
         }
+
+        this._interact_layer();
     }
 
     /**

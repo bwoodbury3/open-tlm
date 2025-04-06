@@ -28,7 +28,7 @@ export class ColorPicker {
             this.color_max += 10;
         }
 
-        var color = `rgb(${r} ${g} ${b})`;
+        var color = `rgb(${r}, ${g}, ${b})`;
         return color;
     }
 
@@ -39,5 +39,18 @@ export class ColorPicker {
         this.mask = 1;
         this.color_min = INIT_COLOR_MIN;
         this.color_max = INIT_COLOR_MAX;
+    }
+
+    /**
+     * Add the desired alpha to the rgb string returned by the color picker.
+     *
+     * @param {String} rgb_str The RGB string returned by next()
+     * @param {Number} alpha The alpha value to add [0.0, 1.0]
+     */
+    with_alpha(rgb_str, alpha) {
+        /*
+         * Hilarious hack.
+         */
+        return rgb_str.replace(")", `, ${alpha})`).replace("rgb", "rgba");
     }
 }
