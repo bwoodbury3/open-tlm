@@ -2,7 +2,7 @@
 
 An open source time-series database optimized for real-time visualization in the web browser.
 
-![open-tlm-demo.gif](doc/img/open-tlm-demo.gif)
+![open-tlm-demo](https://github.com/user-attachments/assets/8da6873d-7d1a-4bb3-a148-bcbee576c8cd)
 
 `open-tlm` is:
 * A database which stores time-series data (i.e. a temperature sensor captured at 10Hz).
