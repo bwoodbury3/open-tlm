@@ -1,6 +1,7 @@
 import { XAxis, YAxis } from "/public/axes.js";
 import { ColorPicker } from "/public/color.js";
 import { CommentCreateController, get_comments } from "/public/comment.js";
+import { Histogram, HistogramDatasetEntry } from "/public/histogram.js";
 import { TaskQueue } from "/public/tasks.js";
 
 const DATA_ENDPOINT = "/api/data";
@@ -52,6 +53,11 @@ export class Graph {
         this.graph_ctx = this.graph_layer.getContext("2d");
 
         /*
+         * Initialize the histogram.
+         */
+        this.histogram = new Histogram("layer-histogram");
+
+        /*
          * Initialize the interactive layer.
          */
         this.interact_layer = document.getElementById("layer-interact");
@@ -62,7 +68,7 @@ export class Graph {
         /*
          * Initialize the legend.
          */
-        this.legend = document.getElementById("legend");
+        this.legend = document.getElementById("graph-legend");
         this.legend.style.visibility = "hidden";
 
         /*
@@ -433,7 +439,7 @@ export class Graph {
                             </span>
                         </td>
                         <td>
-                            <p id="legend-${dataset_id}"
+                            <p id="graph-legend-${dataset_id}"
                                 class="clickable mb-0"
                                 style="color: ${this.colors[dataset_id]}">
                                 ${dataset_id}
@@ -451,8 +457,11 @@ export class Graph {
          */
         for (const axis of this.y_axes) {
             for (const dataset_id in axis.datasets) {
-                const legend_item = document.getElementById(`legend-${dataset_id}`);
-                legend_item.onclick = () => this.remove_dataset(dataset_id);
+                const legend_item = document.getElementById(`graph-legend-${dataset_id}`);
+                legend_item.onclick = () => this._legend_click(dataset_id);
+                legend_item.onmouseenter = () => this._legend_enter(dataset_id);
+                legend_item.onmouseleave = () => this._legend_leave(dataset_id);
+
                 const axis_toggle = document.getElementById(`axis-toggle-${dataset_id}`);
                 axis_toggle.onclick = () => this._toggle_axis(dataset_id);
             }
@@ -972,6 +981,58 @@ export class Graph {
             this._graph_layer();
             this._refresh();
         }
+    }
+
+    /**
+     * Trigger handler for when a legend item is clicked.
+     *
+     * @param {String} dataset_id
+     */
+    _legend_click(dataset_id) {
+        this._legend_leave(dataset_id);
+
+        /*
+         * Delete the dataset.
+         */
+        this.remove_dataset(dataset_id);
+    }
+
+    /**
+     * Trigger handler for when a legend item is hovered over.
+     *
+     * @param {String} dataset_id
+     */
+    _legend_enter(dataset_id) {
+        if (dataset_id) {
+            /*
+             * Fetch the data for this dataset. Abort if we don't have it for
+             * some reason (maybe _fetch() hasn't returned yet).
+             */
+            let data = undefined;
+            for (const ax of this.y_axes) {
+                if (ax.has(dataset_id)) {
+                    data = ax.get(dataset_id);
+                    break;
+                }
+            }
+            if (data === undefined) {
+                return;
+            }
+
+            const color = this.color_picker.with_alpha(this.colors[dataset_id], 0.3);
+            console.log(color);
+            const entry = new HistogramDatasetEntry(dataset_id, data, color);
+            this.histogram.render_one(entry, this.start, this.end);
+        }
+    }
+
+    /**
+     * Mouse leave event handler for a legend item.
+     *
+     * @param {String} dataset_id
+     */
+    _legend_leave(dataset_id) {
+        this.histogram.clear();
     }
 
     /**
